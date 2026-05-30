@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, ReferenceLine, LabelList,
+} from "recharts";
 import { getFilters, getABC, getElementNumbers, getProductionDates } from "../api";
 import ScatterPlotModule from "../components/ScatterPlotModule";
 
@@ -451,63 +455,91 @@ function ABCPage() {
 
   return (
     <div style={{ flex: 1, padding: 20, overflowY: "auto" }}>
-      {/* Controls */}
-      <div className="abc-controls">
-        <div className="control-group">
-          <label>Analyze By</label>
-          <div className="period-tabs">
-            <button
-              className={`period-tab ${analyzeBy === "element" ? "active" : ""}`}
-              onClick={() => { setAnalyzeBy("element"); setWell(""); }}
-            >
-              Element #
-            </button>
-            <button
-              className={`period-tab ${analyzeBy === "well" ? "active" : ""}`}
-              onClick={() => { setAnalyzeBy("well"); setElementNumber(""); }}
-            >
-              Well
-            </button>
+      {/* Unified panel: stats left, controls right */}
+      <div className="abc-panel">
+        {/* Left: stats */}
+        <div className="abc-panel-stats">
+          <div className="abc-stat">
+            <span className="abc-stat-value">{totalItems}</span>
+            <span className="abc-stat-label">{analyzeBy === "element" ? "Elements" : "Wells"}</span>
+          </div>
+          <div className="abc-stat abc-stat--green">
+            <span className="abc-stat-value" style={{ color: "#4caf50" }}>{increasing}</span>
+            <span className="abc-stat-label">Up ({scatterPeriod}M)</span>
+          </div>
+          <div className="abc-stat abc-stat--gray">
+            <span className="abc-stat-value">{stable}</span>
+            <span className="abc-stat-label">Stable</span>
+          </div>
+          <div className="abc-stat abc-stat--red">
+            <span className="abc-stat-value" style={{ color: "#f44336" }}>{declining}</span>
+            <span className="abc-stat-label">Down ({scatterPeriod}M)</span>
+          </div>
+          <div className="abc-stat">
+            <span className="abc-stat-value abc-stat-date">{data?.latest_date || "—"}</span>
+            <span className="abc-stat-label">Latest</span>
           </div>
         </div>
-        <div className="control-group">
-          <label>Field</label>
-          <select value={field} onChange={(e) => { setField(e.target.value); setReservoir(""); setPlatform(""); setElementNumber(""); setWell(""); }}>
-            <option value="">All</option>
-            {filters.fields.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
-        </div>
-        <div className="control-group">
-          <label>Reservoir</label>
-          <select value={reservoir} onChange={(e) => { setReservoir(e.target.value); setPlatform(""); setElementNumber(""); setWell(""); }}>
-            <option value="">All</option>
-            {filters.reservoirs.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div className="control-group">
-          <label>Platform</label>
-          <select value={platform} onChange={(e) => { setPlatform(e.target.value); setElementNumber(""); setWell(""); }}>
-            <option value="">All</option>
-            {filters.platforms.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-        {analyzeBy === "element" ? (
+        {/* Divider */}
+        <div className="abc-panel-divider" />
+        {/* Right: filters */}
+        <div className="abc-panel-filters">
           <div className="control-group">
-            <label>Element #</label>
-            <select value={elementNumber} onChange={(e) => setElementNumber(e.target.value)}>
+            <label>Analyze By</label>
+            <div className="period-tabs">
+              <button
+                className={`period-tab ${analyzeBy === "element" ? "active" : ""}`}
+                onClick={() => { setAnalyzeBy("element"); setWell(""); }}
+              >
+                Element #
+              </button>
+              <button
+                className={`period-tab ${analyzeBy === "well" ? "active" : ""}`}
+                onClick={() => { setAnalyzeBy("well"); setElementNumber(""); }}
+              >
+                Well
+              </button>
+            </div>
+          </div>
+          <div className="control-group">
+            <label>Field</label>
+            <select value={field} onChange={(e) => { setField(e.target.value); setReservoir(""); setPlatform(""); setElementNumber(""); setWell(""); }}>
               <option value="">All</option>
-              {elementNumbers.map((en) => <option key={en} value={en}>{en}</option>)}
+              {filters.fields.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
-        ) : (
           <div className="control-group">
-            <label>Well</label>
-            <select value={well} onChange={(e) => setWell(e.target.value)}>
+            <label>Reservoir</label>
+            <select value={reservoir} onChange={(e) => { setReservoir(e.target.value); setPlatform(""); setElementNumber(""); setWell(""); }}>
               <option value="">All</option>
-              {wells.map((w) => <option key={w} value={w}>{w}</option>)}
+              {filters.reservoirs.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-        )}
+          <div className="control-group">
+            <label>Platform</label>
+            <select value={platform} onChange={(e) => { setPlatform(e.target.value); setElementNumber(""); setWell(""); }}>
+              <option value="">All</option>
+              {filters.platforms.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          {analyzeBy === "element" ? (
+            <div className="control-group">
+              <label>Element #</label>
+              <select value={elementNumber} onChange={(e) => setElementNumber(e.target.value)}>
+                <option value="">All</option>
+                {elementNumbers.map((en) => <option key={en} value={en}>{en}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div className="control-group">
+              <label>Well</label>
+              <select value={well} onChange={(e) => setWell(e.target.value)}>
+                <option value="">All</option>
+                {wells.map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && items.length === 0 ? (
@@ -516,30 +548,6 @@ function ABCPage() {
         <div className="loading">No data for selected filters</div>
       ) : (
         <>
-          {/* Summary cards */}
-          <div className="abc-summary">
-            <div className="summary-card">
-              <div className="value">{totalItems}</div>
-              <div className="label">{analyzeBy === "element" ? "Elements" : "Wells"}</div>
-            </div>
-            <div className="summary-card" style={{ borderTop: "4px solid #4caf50" }}>
-              <div className="value" style={{ color: "#4caf50" }}>{increasing}</div>
-              <div className="label">Increasing ({scatterPeriod}M)</div>
-            </div>
-            <div className="summary-card" style={{ borderTop: "4px solid #9e9e9e" }}>
-              <div className="value">{stable}</div>
-              <div className="label">Stable ({scatterPeriod}M)</div>
-            </div>
-            <div className="summary-card" style={{ borderTop: "4px solid #f44336" }}>
-              <div className="value" style={{ color: "#f44336" }}>{declining}</div>
-              <div className="label">Declining ({scatterPeriod}M)</div>
-            </div>
-            <div className="summary-card">
-              <div className="value" style={{ fontSize: 16 }}>{data?.latest_date}</div>
-              <div className="label">Latest Data</div>
-            </div>
-          </div>
-
           {/* Scatter Plots Row */}
           <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
             {/* ABC Scatter Plot — custom Spotfire-style module */}
@@ -610,6 +618,60 @@ function ABCPage() {
               />
             </div>
           </div>
+
+          {/* Top 10 Oil Rate Change Bar Chart */}
+          {(() => {
+            const sorted = [...items]
+              .map((item) => ({
+                name: item.label || item.name,
+                deltaOil: item[`delta_oil_${scatterPeriod}m`] || 0,
+              }))
+              .sort((a, b) => Math.abs(b.deltaOil) - Math.abs(a.deltaOil))
+              .slice(0, 10)
+              .sort((a, b) => a.deltaOil - b.deltaOil);
+            if (sorted.length === 0) return null;
+            return (
+              <div className="chart-card" style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: "0 0 12px 0" }}>
+                  Top 10 Oil Rate Change ({scatterPeriod}M), t/d
+                </h3>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={sorted} margin={{ top: 20, right: 20, left: 10, bottom: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#000", fontSize: 11 }}
+                      angle={-45}
+                      textAnchor="end"
+                      interval={0}
+                      height={80}
+                    />
+                    <YAxis tick={{ fill: "#000", fontSize: 12 }} domain={([dataMin, dataMax]) => [Math.floor(dataMin) - 2, Math.ceil(dataMax) + 2]} />
+                    <Tooltip
+                      formatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
+                      contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 6 }}
+                      labelStyle={{ color: "#fff" }}
+                    />
+                    <ReferenceLine y={0} stroke="#666" />
+                    <Bar dataKey="deltaOil" radius={[4, 4, 0, 0]}>
+                      {sorted.map((entry, idx) => (
+                        <Cell
+                          key={idx}
+                          fill={entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
+                        />
+                      ))}
+                      <LabelList
+                        dataKey="deltaOil"
+                        position="top"
+                        formatter={(v) => v.toFixed(1)}
+                        style={{ fill: "#000", fontSize: 11, fontWeight: 600 }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {/* Detail Table */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>

@@ -191,7 +191,7 @@ function ScatterPlotModule({
       type: "number",
       dataKey,
       reversed: !!s.reverse,
-      tick: { fontSize: 11 },
+      tick: { fontSize: 11, fill: "#000" },
       tickFormatter: numFmt(axis),
     };
     if (s.scaleType === "log") props.scale = "log";
@@ -428,16 +428,18 @@ function ScatterPlotModule({
       <div className="spm-toolbar">
         <div className="spm-btn-group">
           <Btn onClick={() => goto(0)} disabled={curIndex === 0}>⏮</Btn>
-          <Btn onClick={() => goto(curIndex - 5)} disabled={curIndex === 0}>⏪</Btn>
           <Btn onClick={() => goto(curIndex - 1)} disabled={curIndex === 0}>◀</Btn>
           <Btn onClick={() => setPlaying(false)} className="">⏹</Btn>
           <Btn
-            onClick={() => setPlaying((p) => !p)}
-            className={`play ${playing ? "active" : ""}`}
-            disabled={curIndex >= lastIndex && !playing}
+            onClick={() => { setPlaying(false); goto(curIndex + 1); }}
+            className="play"
+            disabled={curIndex >= lastIndex}
           >▶</Btn>
-          <Btn onClick={() => goto(curIndex + 1)} disabled={curIndex >= lastIndex}>▶▶</Btn>
-          <Btn onClick={() => goto(curIndex + 5)} disabled={curIndex >= lastIndex}>⏩</Btn>
+          <Btn
+            onClick={() => setPlaying((p) => !p)}
+            className={`${playing ? "active" : ""}`}
+            disabled={curIndex >= lastIndex && !playing}
+          >▶▶</Btn>
           <Btn onClick={() => goto(lastIndex)} disabled={curIndex >= lastIndex}>⏭</Btn>
         </div>
         <select
@@ -514,12 +516,12 @@ function ScatterPlotModule({
               <XAxis
                 {...axisProps("x", "x")}
                 name={settings.x.title}
-                label={{ value: settings.x.title, position: "insideBottom", offset: -15, style: { fontSize: 12 } }}
+                label={{ value: settings.x.title, position: "insideBottom", offset: -15, style: { fontSize: 12, fill: "#000" } }}
               />
               <YAxis
                 {...axisProps("y", "y")}
                 name={settings.y.title}
-                label={{ value: settings.y.title, angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                label={{ value: settings.y.title, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 12, textAnchor: "middle", fill: "#000" } }}
               />
               <ZAxis range={[70, 70]} />
               {referenceLines.map((rl, i) =>
@@ -537,7 +539,7 @@ function ScatterPlotModule({
                   <Cell key={i} fill={fillFor(entry)} />
                 ))}
                 {settings.showLabels && (
-                  <LabelList dataKey="label" position="top" style={{ fontSize: 9, fill: "#444", fontWeight: 600 }} />
+                  <LabelList dataKey="label" position="top" style={{ fontSize: 9, fill: "#000", fontWeight: 600 }} />
                 )}
               </Scatter>
             </ScatterChart>
