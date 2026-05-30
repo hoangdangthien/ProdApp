@@ -126,6 +126,7 @@ def get_abc_rate_change(
             "field": ent["field"],
             "region": ent["region"],
             "reservoir": ent["reservoir"],
+            "region": ent["region"],
             "platform": ent["platform"],
             "well_count": len(ent["uids"]),
             "current_oil_rate": round(current_oil, 2),
