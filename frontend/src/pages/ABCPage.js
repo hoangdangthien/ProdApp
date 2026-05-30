@@ -1,9 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Cell,
-  ScatterChart, Scatter, ZAxis, LabelList,
-} from "recharts";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { getFilters, getABC, getElementNumbers, getProductionDates } from "../api";
@@ -23,23 +18,10 @@ const CATEGORY_FIELDS = [
   { value: "element", label: "Element (Đối tượng)" },
 ];
 
-const blankAxis = () => ({ label: "", min: "", max: "", ticks: "" });
-
-const DEFAULT_PLOT_SETTINGS = {
-  open: false,
+const DEFAULT_COLOR_SETTINGS = {
   colorBy: "quadrant",
   quadrantColors: { pos: "#4caf50", mixed: "#ff9800", neg: "#f44336" },
   categoryColors: {},
-  abc: {
-    x: blankAxis(),
-    y: blankAxis(),
-    legend: { pos: "Both increasing", mixed: "Mixed", neg: "Both declining" },
-  },
-  decomp: {
-    x: blankAxis(),
-    y: blankAxis(),
-    legend: { pos: "Both positive", mixed: "Mixed", neg: "Both negative" },
-  },
 };
 
 function ABCPage() {
@@ -60,37 +42,30 @@ function ABCPage() {
   const [annotations, setAnnotations] = useState(() => {
     try { return JSON.parse(localStorage.getItem("abc_annotations") || "{}"); } catch { return {}; }
   });
-  const [plotSettings, setPlotSettings] = useState(() => {
+  const [cellOverrides, setCellOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("abc_cell_overrides") || "{}"); } catch { return {}; }
+  });
+  const [editingCell, setEditingCell] = useState(null);
+  const [editValue, setEditValue] = useState("");
+  const [headerOverrides, setHeaderOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("abc_header_overrides") || "{}"); } catch { return {}; }
+  });
+  const [editingHeader, setEditingHeader] = useState(null);
+  const [editHeaderValue, setEditHeaderValue] = useState("");
+  const [colorSettings, setColorSettings] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("abc_plot_settings"));
-      return saved ? { ...DEFAULT_PLOT_SETTINGS, ...saved } : DEFAULT_PLOT_SETTINGS;
-    } catch { return DEFAULT_PLOT_SETTINGS; }
+      const saved = JSON.parse(localStorage.getItem("abc_color_settings"));
+      return saved ? { ...DEFAULT_COLOR_SETTINGS, ...saved } : DEFAULT_COLOR_SETTINGS;
+    } catch { return DEFAULT_COLOR_SETTINGS; }
   });
 
-  const updatePlotSettings = (updater) => {
-    setPlotSettings((prev) => {
+  const updateColorSettings = (updater) => {
+    setColorSettings((prev) => {
       const next = typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
-      localStorage.setItem("abc_plot_settings", JSON.stringify(next));
+      localStorage.setItem("abc_color_settings", JSON.stringify(next));
       return next;
     });
   };
-
-  // Update a single axis property, e.g. setAxis("abc", "x", "label", "My label")
-  const setAxis = (chart, axis, key, value) => {
-    updatePlotSettings((prev) => ({
-      ...prev,
-      [chart]: { ...prev[chart], [axis]: { ...prev[chart][axis], [key]: value } },
-    }));
-  };
-
-  const setLegendLabel = (chart, key, value) => {
-    updatePlotSettings((prev) => ({
-      ...prev,
-      [chart]: { ...prev[chart], legend: { ...prev[chart].legend, [key]: value } },
-    }));
-  };
-
-  const resetPlotSettings = () => updatePlotSettings({ ...DEFAULT_PLOT_SETTINGS, open: true });
 
   useEffect(() => {
     getFilters().then((res) => setFilters(res.data));
@@ -170,7 +145,11 @@ function ABCPage() {
     const deltaOilBecauseLiq = (liqCur - liqPrev) * (100 - wcPrev) / 100;
     const deltaOilBecauseWC = deltaOilTotal - deltaOilBecauseLiq;
     return {
+      x: parseFloat(deltaOilBecauseLiq.toFixed(2)),
+      y: parseFloat(deltaOilBecauseWC.toFixed(2)),
+      label: item.label || item.name,
       name: item.label || item.name,
+      category: item.element || "—",
       deltaOilBecauseLiq: parseFloat(deltaOilBecauseLiq.toFixed(2)),
       deltaOilBecauseWC: parseFloat(deltaOilBecauseWC.toFixed(2)),
       platform: item.platform || "—",
@@ -179,7 +158,7 @@ function ABCPage() {
     };
   });
 
-  const { colorBy, quadrantColors, categoryColors } = plotSettings;
+  const { colorBy, quadrantColors, categoryColors } = colorSettings;
 
   // Distinct values for the active category field (empty when coloring by quadrant)
   const categoryValues = colorBy === "quadrant"
@@ -207,17 +186,6 @@ function ABCPage() {
 
   const getPointColor = (entry) => resolveColor(entry, abcQuadrantKey);
 
-  const decompDomain = (() => {
-    let xMin = 0, xMax = 0, yMin = 0, yMax = 0;
-    decompositionData.forEach((d) => {
-      if (d.deltaOilBecauseLiq != null) { xMin = Math.min(xMin, d.deltaOilBecauseLiq); xMax = Math.max(xMax, d.deltaOilBecauseLiq); }
-      if (d.deltaOilBecauseWC != null) { yMin = Math.min(yMin, d.deltaOilBecauseWC); yMax = Math.max(yMax, d.deltaOilBecauseWC); }
-    });
-    const xPad = (xMax - xMin) * 0.05 || 1;
-    const yPad = (yMax - yMin) * 0.05 || 1;
-    return { x: [xMin - xPad, xMax + xPad], y: [yMin - yPad, yMax + yPad] };
-  })();
-
   const decompQuadrantKey = (entry) => {
     if (entry.deltaOilBecauseLiq > 0 && entry.deltaOilBecauseWC > 0) return "pos";
     if (entry.deltaOilBecauseLiq < 0 && entry.deltaOilBecauseWC < 0) return "neg";
@@ -226,29 +194,11 @@ function ABCPage() {
 
   const getDecompColor = (entry) => resolveColor(entry, decompQuadrantKey);
 
-  // Build axis props (domain + tickCount) from settings, falling back to a computed domain
-  const axisProps = (chart, axis, fallbackDomain) => {
-    const s = plotSettings[chart][axis];
-    const lo = s.min === "" || s.min == null ? (fallbackDomain ? fallbackDomain[0] : "auto") : Number(s.min);
-    const hi = s.max === "" || s.max == null ? (fallbackDomain ? fallbackDomain[1] : "auto") : Number(s.max);
-    const props = { domain: [lo, hi] };
-    // Enforce explicit limits strictly (clip data) instead of letting recharts expand
-    if (s.min !== "" && s.min != null) props.allowDataOverflow = true;
-    if (s.max !== "" && s.max != null) props.allowDataOverflow = true;
-    if (s.ticks !== "" && s.ticks != null && Number(s.ticks) > 0) {
-      props.tickCount = Number(s.ticks);
-      props.allowDecimals = true;
-    }
-    return props;
+  const LEGEND_LABELS = {
+    abc: { pos: "Both increasing", mixed: "Mixed", neg: "Both declining" },
+    decomp: { pos: "Both positive", mixed: "Mixed", neg: "Both negative" },
   };
 
-  // Resolve an axis label, using the user override when provided
-  const axisLabel = (chart, axis, fallback) => {
-    const v = plotSettings[chart][axis].label;
-    return v && v.trim() ? v : fallback;
-  };
-
-  // Legend entries for a chart, depending on the active color mode
   const legendItems = (chart) => {
     if (colorBy !== "quadrant") {
       return categoryValues.map((value, idx) => ({
@@ -257,7 +207,7 @@ function ABCPage() {
         color: colorForCategory(value, idx),
       }));
     }
-    const lg = plotSettings[chart].legend;
+    const lg = LEGEND_LABELS[chart];
     return [
       { key: "pos", label: lg.pos, color: quadrantColors.pos },
       { key: "mixed", label: lg.mixed, color: quadrantColors.mixed },
@@ -265,129 +215,117 @@ function ABCPage() {
     ];
   };
 
-  const renderLegend = (chart) => (
-    <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 8, fontSize: 12, flexWrap: "wrap" }}>
-      {legendItems(chart).map((item) => (
-        <span key={item.key}>
-          <span style={{ color: item.color, fontWeight: "bold" }}>&bull;</span> {item.label}
-        </span>
-      ))}
-    </div>
-  );
+  const categoryColorEntries = categoryValues.map((value, idx) => ({
+    value,
+    color: colorForCategory(value, idx),
+  }));
 
-  const numInput = (chart, axis, key, placeholder) => (
-    <input
-      type="number"
-      className="ps-input"
-      value={plotSettings[chart][axis][key]}
-      placeholder={placeholder}
-      onChange={(e) => setAxis(chart, axis, key, e.target.value)}
-    />
-  );
-
-  // Axis settings block (label + min/max limits + tick count) for one chart axis
-  const renderAxisSettings = (chart, axis, title) => (
-    <div className="ps-axis">
-      <div className="ps-axis-title">{title}</div>
-      <input
-        type="text"
-        className="ps-input ps-input-wide"
-        value={plotSettings[chart][axis].label}
-        placeholder="Custom label (blank = default)"
-        onChange={(e) => setAxis(chart, axis, "label", e.target.value)}
-      />
-      <div className="ps-row">
-        <span className="ps-mini-label">Min</span>{numInput(chart, axis, "min", "auto")}
-        <span className="ps-mini-label">Max</span>{numInput(chart, axis, "max", "auto")}
-        <span className="ps-mini-label">Ticks</span>{numInput(chart, axis, "ticks", "auto")}
-      </div>
-    </div>
-  );
-
-  // Full settings card for one chart: axes + legend labels
-  const renderChartSettings = (chart, title) => (
-    <div className="ps-card">
-      <div className="ps-card-title">{title}</div>
-      {renderAxisSettings(chart, "x", "X axis")}
-      {renderAxisSettings(chart, "y", "Y axis")}
-      {colorBy === "quadrant" && (
-        <div className="ps-axis">
-          <div className="ps-axis-title">Legend labels</div>
-          {["pos", "mixed", "neg"].map((k) => (
-            <div className="ps-row" key={k}>
-              <span style={{ color: quadrantColors[k], fontWeight: "bold" }}>&bull;</span>
-              <input
-                type="text"
-                className="ps-input ps-input-wide"
-                value={plotSettings[chart].legend[k]}
-                onChange={(e) => setLegendLabel(chart, k, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  // Color configuration: quadrant colors, or per-category color pickers
-  const renderColorSettings = () => (
-    <div className="ps-card">
-      <div className="ps-card-title">Colors</div>
-      <div className="ps-axis">
-        <div className="ps-axis-title">Color points by</div>
-        <select
-          className="ps-input ps-input-wide"
-          value={colorBy}
-          onChange={(e) => updatePlotSettings({ colorBy: e.target.value })}
-        >
-          {CATEGORY_FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-      </div>
-      {colorBy === "quadrant" ? (
-        <div className="ps-axis">
-          <div className="ps-axis-title">Quadrant colors</div>
-          {[["pos", "Both positive"], ["mixed", "Mixed"], ["neg", "Both negative"]].map(([k, lbl]) => (
-            <div className="ps-row" key={k}>
-              <input
-                type="color"
-                className="ps-color"
-                value={quadrantColors[k]}
-                onChange={(e) => updatePlotSettings((prev) => ({
-                  ...prev, quadrantColors: { ...prev.quadrantColors, [k]: e.target.value },
-                }))}
-              />
-              <span style={{ fontSize: 12 }}>{lbl}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="ps-axis">
-          <div className="ps-axis-title">{CATEGORY_FIELDS.find((f) => f.value === colorBy)?.label} colors</div>
-          <div style={{ maxHeight: 180, overflowY: "auto" }}>
-            {categoryValues.map((value, idx) => (
-              <div className="ps-row" key={value}>
-                <input
-                  type="color"
-                  className="ps-color"
-                  value={colorForCategory(value, idx)}
-                  onChange={(e) => updatePlotSettings((prev) => ({
-                    ...prev, categoryColors: { ...prev.categoryColors, [value]: e.target.value },
-                  }))}
-                />
-                <span style={{ fontSize: 12 }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  const handleColorByChange = (value) => updateColorSettings({ colorBy: value });
+  const handleQuadrantColorChange = (key, hex) =>
+    updateColorSettings((prev) => ({
+      ...prev, quadrantColors: { ...prev.quadrantColors, [key]: hex },
+    }));
+  const handleCategoryColorChange = (value, hex) =>
+    updateColorSettings((prev) => ({
+      ...prev, categoryColors: { ...prev.categoryColors, [value]: hex },
+    }));
 
   // Summary stats
   const totalItems = items.length;
   const declining = items.filter((i) => i[`delta_oil_${scatterPeriod}m`] < 0).length;
   const increasing = items.filter((i) => i[`delta_oil_${scatterPeriod}m`] > 0).length;
   const stable = totalItems - declining - increasing;
+
+  const updateCellOverride = (itemName, colKey, value) => {
+    setCellOverrides((prev) => {
+      const next = { ...prev, [itemName]: { ...prev[itemName], [colKey]: value } };
+      localStorage.setItem("abc_cell_overrides", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const startEditing = (itemName, colKey, currentValue) => {
+    setEditingCell({ itemName, colKey });
+    setEditValue(currentValue != null ? String(currentValue) : "");
+  };
+
+  const commitEdit = () => {
+    if (!editingCell) return;
+    const { itemName, colKey } = editingCell;
+    updateCellOverride(itemName, colKey, editValue);
+    setEditingCell(null);
+    setEditValue("");
+  };
+
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setEditValue("");
+  };
+
+  const getCellValue = (item, colKey, originalValue) => {
+    const override = cellOverrides[item.name]?.[colKey];
+    return override !== undefined ? override : originalValue;
+  };
+
+  const updateHeaderOverride = (key, value) => {
+    setHeaderOverrides((prev) => {
+      const next = { ...prev, [key]: value };
+      localStorage.setItem("abc_header_overrides", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const startEditingHeader = (key, currentValue) => {
+    setEditingHeader(key);
+    setEditHeaderValue(currentValue || "");
+  };
+
+  const commitHeaderEdit = () => {
+    if (!editingHeader) return;
+    updateHeaderOverride(editingHeader, editHeaderValue);
+    setEditingHeader(null);
+    setEditHeaderValue("");
+  };
+
+  const cancelHeaderEdit = () => {
+    setEditingHeader(null);
+    setEditHeaderValue("");
+  };
+
+  const getHeaderValue = (key, defaultValue) =>
+    headerOverrides[key] !== undefined ? headerOverrides[key] : defaultValue;
+
+  const renderHeader = (key, defaultValue, extraProps = {}) => {
+    const { style = {}, ...rest } = extraProps;
+    const displayValue = getHeaderValue(key, defaultValue);
+    const hasOverride = headerOverrides[key] !== undefined;
+    if (editingHeader === key) {
+      return (
+        <th {...rest} style={{ ...style, padding: 0 }}>
+          <input
+            className="abc-header-input"
+            autoFocus
+            value={editHeaderValue}
+            onChange={(e) => setEditHeaderValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitHeaderEdit();
+              if (e.key === "Escape") cancelHeaderEdit();
+            }}
+            onBlur={commitHeaderEdit}
+          />
+        </th>
+      );
+    }
+    return (
+      <th
+        {...rest}
+        style={{ ...style, cursor: "pointer", ...(hasOverride ? { fontStyle: "italic" } : {}) }}
+        onClick={() => startEditingHeader(key, displayValue)}
+      >
+        {displayValue}
+      </th>
+    );
+  };
 
   const updateAnnotation = (name, field, value) => {
     setAnnotations((prev) => {
@@ -413,44 +351,47 @@ function ABCPage() {
   const exportToExcel = () => {
     const p = scatterPeriod;
 
-    // Two-tier grouped header matching the on-screen table
+    const hv = (key, def) => getHeaderValue(key, def);
     const headerRow1 = [
-      "Giếng", "Giàn", "Đối tượng", "Khu vực",
-      previousPeriodLabel, "", "",
-      currentPeriodLabel, "", "",
-      "Chênh lệch", "", "",
-      "Giảm lưu lượng dầu, t/ng.đ", "", "",
-      "Nhóm nguyên nhân", "Ghi chú",
+      hv("h_gieng", "Giếng"), hv("h_gian", "Giàn"), hv("h_doituong", "Đối tượng"), hv("h_khuvuc", "Khu vực"),
+      hv("h_prev_period", previousPeriodLabel), "", "",
+      hv("h_cur_period", currentPeriodLabel), "", "",
+      hv("h_chenhlech", "Chênh lệch"), "", "",
+      hv("h_giam_luuluong", "Giảm lưu lượng dầu, t/ng.đ"), "", "",
+      hv("h_nhom_nguyennhan", "Nhóm nguyên nhân"), hv("h_ghichu", "Ghi chú"),
     ];
     const headerRow2 = [
       "", "", "", "",
-      "Q_fluid, t/ng.đ", "Q_oil, t/ng.đ", "WCT, %",
-      "Q_fluid, t/ng.đ", "Q_dầu, t/ng.đ", "WCT, %",
-      "ΔQ_fluid", "ΔQ_dầu", "ΔWCT",
-      "do Q_fluid", "do WCT", "Tổng ΔQ_oil",
+      hv("h_prev_qfluid", "Q_fluid, t/ng.đ"), hv("h_prev_qoil", "Q_oil, t/ng.đ"), hv("h_prev_wct", "WCT, %"),
+      hv("h_cur_qfluid", "Q_fluid, t/ng.đ"), hv("h_cur_qdau", "Q_dầu, t/ng.đ"), hv("h_cur_wct", "WCT, %"),
+      hv("h_delta_qfluid", "ΔQ_fluid"), hv("h_delta_qdau", "ΔQ_dầu"), hv("h_delta_wct", "ΔWCT"),
+      hv("h_decomp_qfluid", "do Q_fluid"), hv("h_decomp_wct", "do WCT"), hv("h_total_delta_qoil", "Tổng ΔQ_oil"),
       "", "",
     ];
 
-    const dataRows = items.map((item) => [
-      item.label || item.name,
-      item.platform || "",
-      item.element || "",
-      item.field || "",
-      item[`liq_rate_${p}m_ago`],
-      item[`oil_rate_${p}m_ago`],
-      item[`wct_${p}m_ago`],
-      item.current_liq_rate,
-      item.current_oil_rate,
-      item.current_wct,
-      item[`delta_liq_${p}m`],
-      item[`delta_oil_${p}m`],
-      item[`delta_wct_${p}m`],
-      item[`decomp_liq_${p}m`],
-      item[`decomp_wct_${p}m`],
-      item[`delta_oil_${p}m`],
-      annotations[item.name]?.cause || "",
-      annotations[item.name]?.note || "",
-    ]);
+    const dataRows = items.map((item) => {
+      const cv = (colKey, orig) => getCellValue(item, colKey, orig);
+      return [
+        cv("label", item.label || item.name),
+        cv("platform", item.platform || ""),
+        cv("element", item.element || ""),
+        cv("field", item.field || ""),
+        cv(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`]),
+        cv(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`]),
+        cv(`wct_${p}m_ago`, item[`wct_${p}m_ago`]),
+        cv("current_liq_rate", item.current_liq_rate),
+        cv("current_oil_rate", item.current_oil_rate),
+        cv("current_wct", item.current_wct),
+        cv(`delta_liq_${p}m`, item[`delta_liq_${p}m`]),
+        cv(`delta_oil_${p}m`, item[`delta_oil_${p}m`]),
+        cv(`delta_wct_${p}m`, item[`delta_wct_${p}m`]),
+        cv(`decomp_liq_${p}m`, item[`decomp_liq_${p}m`]),
+        cv(`decomp_wct_${p}m`, item[`decomp_wct_${p}m`]),
+        cv(`total_delta_oil_${p}m`, item[`delta_oil_${p}m`]),
+        annotations[item.name]?.cause || "",
+        annotations[item.name]?.note || "",
+      ];
+    });
 
     const ws = XLSX.utils.aoa_to_sheet([headerRow1, headerRow2, ...dataRows]);
 
@@ -599,28 +540,6 @@ function ABCPage() {
             </div>
           </div>
 
-          {/* Plot settings */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button
-                className="period-tab"
-                onClick={() => updatePlotSettings((prev) => ({ ...prev, open: !prev.open }))}
-              >
-                {plotSettings.open ? "▼" : "▶"} Plot Settings
-              </button>
-              {plotSettings.open && (
-                <button className="period-tab" onClick={resetPlotSettings}>Reset to defaults</button>
-              )}
-            </div>
-            {plotSettings.open && (
-              <div className="ps-panel">
-                {renderColorSettings()}
-                {renderChartSettings("abc", "Δ Oil vs Δ Liquid plot")}
-                {renderChartSettings("decomp", "Decomposition plot")}
-              </div>
-            )}
-          </div>
-
           {/* Scatter Plots Row */}
           <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
             {/* ABC Scatter Plot — custom Spotfire-style module */}
@@ -653,56 +572,42 @@ function ABCPage() {
                 loading={loading}
                 storageKey="abc_scatter_module"
                 height={450}
+                colorByOptions={CATEGORY_FIELDS}
+                colorBy={colorBy}
+                onColorByChange={handleColorByChange}
+                quadrantColors={quadrantColors}
+                onQuadrantColorChange={handleQuadrantColorChange}
+                categoryColorEntries={categoryColorEntries}
+                onCategoryColorChange={handleCategoryColorChange}
               />
             </div>
 
-            {/* Decomposition Scatter Plot */}
+            {/* Decomposition Scatter Plot — ScatterPlotModule */}
             <div className="chart-card" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
                 <h3 style={{ margin: 0 }}>Oil Rate Change Decomposition ({scatterPeriod}M)</h3>
               </div>
-              {decompositionData.length === 0 ? (
-                <div className="empty-state">No data</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={450}>
-                  <ScatterChart margin={{ top: 20, right: 30, bottom: 40, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis
-                      type="number"
-                      dataKey="deltaOilBecauseLiq"
-                      name="Δ Oil due to Liquid"
-                      unit=" t/d"
-                      tick={{ fontSize: 11 }}
-                      {...axisProps("decomp", "x", decompDomain.x)}
-                      label={{ value: axisLabel("decomp", "x", "Changing Oil Rate because of changing Liquid (t/d)"), position: "insideBottom", offset: -25, style: { fontSize: 11 } }}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="deltaOilBecauseWC"
-                      name="Δ Oil due to WC"
-                      unit=" t/d"
-                      tick={{ fontSize: 11 }}
-                      {...axisProps("decomp", "y", decompDomain.y)}
-                      label={{ value: axisLabel("decomp", "y", "Changing Oil Rate because of changing WC (t/d)"), angle: -90, position: "insideLeft", style: { fontSize: 11 } }}
-                    />
-                    <ZAxis range={[60, 60]} />
-                    <ReferenceLine x={0} stroke="#666" strokeWidth={1} strokeDasharray="4 4" />
-                    <ReferenceLine y={0} stroke="#666" strokeWidth={1} strokeDasharray="4 4" />
-                    <Tooltip
-                      cursor={{ strokeDasharray: "3 3" }}
-                      formatter={(value, name) => [`${value > 0 ? "+" : ""}${value.toFixed(2)} t/d`, name]}
-                      labelFormatter={(_, payload) => payload?.[0]?.payload?.name || ""}
-                    />
-                    <Scatter data={decompositionData} name="Wells/Elements">
-                      {decompositionData.map((entry, i) => (
-                        <Cell key={i} fill={getDecompColor(entry)} />
-                      ))}
-                      <LabelList dataKey="name" position="top" style={{ fontSize: 9, fill: "#555" }} />
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              )}
-              {renderLegend("decomp")}
+              <ScatterPlotModule
+                title={`Decomposition ${scatterPeriod}M`}
+                data={decompositionData}
+                xTitle="Changing Oil Rate because of changing Liquid (t/d)"
+                yTitle="Changing Oil Rate because of changing WC (t/d)"
+                colorForPoint={getDecompColor}
+                legend={legendItems("decomp")}
+                dates={timelineDates}
+                currentDate={currentTimelineDate}
+                onDateChange={setRefDate}
+                loading={loading}
+                storageKey="abc_decomp_module"
+                height={450}
+                colorByOptions={CATEGORY_FIELDS}
+                colorBy={colorBy}
+                onColorByChange={handleColorByChange}
+                quadrantColors={quadrantColors}
+                onQuadrantColorChange={handleQuadrantColorChange}
+                categoryColorEntries={categoryColorEntries}
+                onCategoryColorChange={handleCategoryColorChange}
+              />
             </div>
           </div>
 
@@ -717,60 +622,92 @@ function ABCPage() {
             <table className="abc-table">
               <thead>
                 <tr>
-                  <th rowSpan={2} style={{ position: "sticky", left: 0, zIndex: 2, background: "#1a1a2e" }}>Giếng</th>
-                  <th rowSpan={2}>Giàn</th>
-                  <th rowSpan={2}>Đối tượng</th>
-                  <th rowSpan={2}>Khu vực</th>
-                  <th colSpan={3} style={{ textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>{previousPeriodLabel}</th>
-                  <th colSpan={3} style={{ textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)", background: "#2a3a5e" }}>{currentPeriodLabel}</th>
-                  <th colSpan={3} style={{ textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>Chênh lệch</th>
-                  <th colSpan={3} style={{ textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>Giảm lưu lượng dầu, t/ng.đ</th>
-                  <th rowSpan={2} style={{ minWidth: 140 }}>Nhóm nguyên nhân</th>
-                  <th rowSpan={2} style={{ minWidth: 140 }}>Ghi chú</th>
+                  {renderHeader("h_gieng", "Giếng", { rowSpan: 2, style: { position: "sticky", left: 0, zIndex: 2, background: "#1a1a2e" } })}
+                  {renderHeader("h_gian", "Giàn", { rowSpan: 2 })}
+                  {renderHeader("h_doituong", "Đối tượng", { rowSpan: 2 })}
+                  {renderHeader("h_khuvuc", "Khu vực", { rowSpan: 2 })}
+                  {renderHeader("h_prev_period", previousPeriodLabel, { colSpan: 3, style: { textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" } })}
+                  {renderHeader("h_cur_period", currentPeriodLabel, { colSpan: 3, style: { textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)", background: "#2a3a5e" } })}
+                  {renderHeader("h_chenhlech", "Chênh lệch", { colSpan: 3, style: { textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" } })}
+                  {renderHeader("h_giam_luuluong", "Giảm lưu lượng dầu, t/ng.đ", { colSpan: 3, style: { textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.2)" } })}
+                  {renderHeader("h_nhom_nguyennhan", "Nhóm nguyên nhân", { rowSpan: 2, style: { minWidth: 140 } })}
+                  {renderHeader("h_ghichu", "Ghi chú", { rowSpan: 2, style: { minWidth: 140 } })}
                 </tr>
                 <tr>
-                  <th>Q_fluid, t/ng.đ</th>
-                  <th>Q_oil, t/ng.đ</th>
-                  <th>WCT, %</th>
-                  <th style={{ background: "#2a3a5e" }}>Q_fluid, t/ng.đ</th>
-                  <th style={{ background: "#2a3a5e" }}>Q_dầu, t/ng.đ</th>
-                  <th style={{ background: "#2a3a5e" }}>WCT, %</th>
-                  <th>&Delta;Q_fluid</th>
-                  <th>&Delta;Q_dầu</th>
-                  <th>&Delta;WCT</th>
-                  <th>do Q_fluid</th>
-                  <th>do WCT</th>
-                  <th>Tổng &Delta;Q_oil</th>
+                  {renderHeader("h_prev_qfluid", "Q_fluid, t/ng.đ")}
+                  {renderHeader("h_prev_qoil", "Q_oil, t/ng.đ")}
+                  {renderHeader("h_prev_wct", "WCT, %")}
+                  {renderHeader("h_cur_qfluid", "Q_fluid, t/ng.đ", { style: { background: "#2a3a5e" } })}
+                  {renderHeader("h_cur_qdau", "Q_dầu, t/ng.đ", { style: { background: "#2a3a5e" } })}
+                  {renderHeader("h_cur_wct", "WCT, %", { style: { background: "#2a3a5e" } })}
+                  {renderHeader("h_delta_qfluid", "ΔQ_fluid")}
+                  {renderHeader("h_delta_qdau", "ΔQ_dầu")}
+                  {renderHeader("h_delta_wct", "ΔWCT")}
+                  {renderHeader("h_decomp_qfluid", "do Q_fluid")}
+                  {renderHeader("h_decomp_wct", "do WCT")}
+                  {renderHeader("h_total_delta_qoil", "Tổng ΔQ_oil")}
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => {
                   const p = scatterPeriod;
-                  const deltaLiq = item[`delta_liq_${p}m`];
-                  const deltaOil = item[`delta_oil_${p}m`];
-                  const deltaWct = item[`delta_wct_${p}m`];
-                  const decompLiq = item[`decomp_liq_${p}m`];
-                  const decompWct = item[`decomp_wct_${p}m`];
+                  const deltaLiq = getCellValue(item, `delta_liq_${p}m`, item[`delta_liq_${p}m`]);
+                  const deltaOil = getCellValue(item, `delta_oil_${p}m`, item[`delta_oil_${p}m`]);
+                  const deltaWct = getCellValue(item, `delta_wct_${p}m`, item[`delta_wct_${p}m`]);
+                  const decompLiq = getCellValue(item, `decomp_liq_${p}m`, item[`decomp_liq_${p}m`]);
+                  const decompWct = getCellValue(item, `decomp_wct_${p}m`, item[`decomp_wct_${p}m`]);
                   const ann = annotations[item.name] || {};
                   const deltaColor = (v) => v > 0 ? "#4caf50" : v < 0 ? "#f44336" : "#666";
+                  const isEditing = (colKey) => editingCell?.itemName === item.name && editingCell?.colKey === colKey;
+
+                  const renderCell = (colKey, originalValue, style) => {
+                    const displayValue = getCellValue(item, colKey, originalValue);
+                    const hasOverride = cellOverrides[item.name]?.[colKey] !== undefined;
+                    if (isEditing(colKey)) {
+                      return (
+                        <td style={{ ...style, padding: 0 }}>
+                          <input
+                            className="abc-cell-input"
+                            autoFocus
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitEdit();
+                              if (e.key === "Escape") cancelEdit();
+                            }}
+                            onBlur={commitEdit}
+                          />
+                        </td>
+                      );
+                    }
+                    return (
+                      <td
+                        style={{ ...style, cursor: "pointer", ...(hasOverride ? { fontStyle: "italic", background: style?.background || "#fffde7" } : {}) }}
+                        onClick={() => startEditing(item.name, colKey, displayValue)}
+                      >
+                        {displayValue}
+                      </td>
+                    );
+                  };
+
                   return (
                     <tr key={item.name}>
-                      <td style={{ position: "sticky", left: 0, background: "#fff", zIndex: 1, fontWeight: 600 }}>{item.label || item.name}</td>
-                      <td>{item.platform}</td>
-                      <td>{item.element}</td>
-                      <td>{item.field}</td>
-                      <td>{item[`liq_rate_${p}m_ago`]}</td>
-                      <td>{item[`oil_rate_${p}m_ago`]}</td>
-                      <td>{item[`wct_${p}m_ago`]}</td>
-                      <td style={{ background: "#f0f4ff" }}>{item.current_liq_rate}</td>
-                      <td style={{ background: "#f0f4ff" }}>{item.current_oil_rate}</td>
-                      <td style={{ background: "#f0f4ff" }}>{item.current_wct}</td>
-                      <td style={{ color: deltaColor(deltaLiq) }}>{deltaLiq}</td>
-                      <td style={{ color: deltaColor(deltaOil) }}>{deltaOil}</td>
-                      <td style={{ color: deltaColor(-deltaWct) }}>{deltaWct}</td>
-                      <td style={{ color: deltaColor(decompLiq) }}>{decompLiq}</td>
-                      <td style={{ color: deltaColor(decompWct) }}>{decompWct}</td>
-                      <td style={{ color: deltaColor(deltaOil), fontWeight: 600 }}>{deltaOil}</td>
+                      {renderCell("label", item.label || item.name, { position: "sticky", left: 0, background: "#fff", zIndex: 1, fontWeight: 600 })}
+                      {renderCell("platform", item.platform)}
+                      {renderCell("element", item.element)}
+                      {renderCell("field", item.field)}
+                      {renderCell(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`])}
+                      {renderCell(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`])}
+                      {renderCell(`wct_${p}m_ago`, item[`wct_${p}m_ago`])}
+                      {renderCell("current_liq_rate", item.current_liq_rate, { background: "#f0f4ff" })}
+                      {renderCell("current_oil_rate", item.current_oil_rate, { background: "#f0f4ff" })}
+                      {renderCell("current_wct", item.current_wct, { background: "#f0f4ff" })}
+                      {renderCell(`delta_liq_${p}m`, item[`delta_liq_${p}m`], { color: deltaColor(deltaLiq) })}
+                      {renderCell(`delta_oil_${p}m`, item[`delta_oil_${p}m`], { color: deltaColor(deltaOil) })}
+                      {renderCell(`delta_wct_${p}m`, item[`delta_wct_${p}m`], { color: deltaColor(-deltaWct) })}
+                      {renderCell(`decomp_liq_${p}m`, item[`decomp_liq_${p}m`], { color: deltaColor(decompLiq) })}
+                      {renderCell(`decomp_wct_${p}m`, item[`decomp_wct_${p}m`], { color: deltaColor(decompWct) })}
+                      {renderCell(`total_delta_oil_${p}m`, item[`delta_oil_${p}m`], { color: deltaColor(deltaOil), fontWeight: 600 })}
                       <td style={{ padding: 0 }}>
                         <input
                           className="abc-cell-input"

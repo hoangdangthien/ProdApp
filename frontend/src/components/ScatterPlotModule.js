@@ -34,6 +34,13 @@ import "./ScatterPlotModule.css";
  *   storageKey    string   — localStorage key for persisting axis settings
  *   height        number   — chart height in px (default 460)
  *   playInterval  number   — ms per animation frame (default 1500)
+ *   colorByOptions   array — [{ value, label }] for the "color by" dropdown
+ *   colorBy          string — active color-by field
+ *   onColorByChange  fn    — (value) called when the user picks a new color-by field
+ *   quadrantColors   obj   — { pos, mixed, neg } hex colors (when colorBy==='quadrant')
+ *   onQuadrantColorChange fn — (key, hex)
+ *   categoryColorEntries array — [{ value, color }] for per-category swatches
+ *   onCategoryColorChange fn — (value, hex)
  */
 
 const PALETTE = [
@@ -74,6 +81,13 @@ function ScatterPlotModule({
   storageKey,
   height = 460,
   playInterval = 1500,
+  colorByOptions,
+  colorBy,
+  onColorByChange,
+  quadrantColors,
+  onQuadrantColorChange,
+  categoryColorEntries,
+  onCategoryColorChange,
 }) {
   const [settings, setSettings] = useState(() => {
     const base = { x: defaultAxis(xTitle), y: defaultAxis(yTitle), showLabels: true };
@@ -93,6 +107,7 @@ function ScatterPlotModule({
   });
 
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState("axes");
   const [inspectorAxis, setInspectorAxis] = useState("y");
   // Tracks which Default/Custom fields the user has put into "Custom" mode.
   // Without this, clearing the input (e.g. via backspace) would make the value
@@ -245,20 +260,21 @@ function ScatterPlotModule({
           value={value}
           placeholder={placeholder}
           disabled={!isCustom}
-          onChange={(e) => setAxis(axis, key, e.target.value)}
+          onChange={(e) => {
+            setMode(true);
+            setAxis(axis, key, e.target.value);
+          }}
         />
       </div>
     );
   };
 
-  const renderInspector = () => {
+  const hasColorSettings = !!colorByOptions && !!onColorByChange;
+
+  const renderAxesBody = () => {
     const axis = inspectorAxis;
     return (
-      <div className="spm-inspector">
-        <div className="spm-insp-header">
-          <span>Property Inspector</span>
-          <button className="spm-insp-close" onClick={() => setInspectorOpen(false)}>×</button>
-        </div>
+      <>
         <div className="spm-insp-axis-picker">
           <button className={axis === "x" ? "active" : ""} onClick={() => setInspectorAxis("x")}>X Axis</button>
           <button className={axis === "y" ? "active" : ""} onClick={() => setInspectorAxis("y")}>Y Axis</button>
@@ -327,9 +343,80 @@ function ScatterPlotModule({
             </div>
           </div>
         </div>
+      </>
+    );
+  };
+
+  const renderColorsBody = () => {
+    if (!hasColorSettings) return null;
+    const isQuadrant = colorBy === "quadrant";
+    return (
+      <div className="spm-insp-body">
+        <div className="spm-insp-section-title">Color By</div>
+        <div className="spm-insp-row" style={{ gridTemplateColumns: "1fr" }}>
+          <select
+            className="spm-insp-input"
+            value={colorBy}
+            onChange={(e) => onColorByChange(e.target.value)}
+          >
+            {colorByOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+
+        {isQuadrant && quadrantColors && onQuadrantColorChange && (
+          <>
+            <div className="spm-insp-section-title">Quadrant Colors</div>
+            {[["pos", "Both positive"], ["mixed", "Mixed"], ["neg", "Both negative"]].map(([k, lbl]) => (
+              <div className="spm-insp-row" key={k}>
+                <label>{lbl}</label>
+                <input
+                  type="color"
+                  className="spm-insp-color"
+                  value={quadrantColors[k]}
+                  onChange={(e) => onQuadrantColorChange(k, e.target.value)}
+                />
+              </div>
+            ))}
+          </>
+        )}
+
+        {!isQuadrant && categoryColorEntries && onCategoryColorChange && (
+          <>
+            <div className="spm-insp-section-title">Category Colors</div>
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              {categoryColorEntries.map(({ value, color }) => (
+                <div className="spm-insp-row" key={value}>
+                  <label style={{ fontSize: 11 }}>{value}</label>
+                  <input
+                    type="color"
+                    className="spm-insp-color"
+                    value={color}
+                    onChange={(e) => onCategoryColorChange(value, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     );
   };
+
+  const renderInspector = () => (
+    <div className="spm-inspector">
+      <div className="spm-insp-header">
+        <span>Property Inspector</span>
+        <button className="spm-insp-close" onClick={() => setInspectorOpen(false)}>×</button>
+      </div>
+      {hasColorSettings && (
+        <div className="spm-insp-axis-picker">
+          <button className={inspectorTab === "axes" ? "active" : ""} onClick={() => setInspectorTab("axes")}>Axes</button>
+          <button className={inspectorTab === "colors" ? "active" : ""} onClick={() => setInspectorTab("colors")}>Colors</button>
+        </div>
+      )}
+      {inspectorTab === "axes" ? renderAxesBody() : renderColorsBody()}
+    </div>
+  );
 
   // --- Toolbar ---------------------------------------------------------------
   const renderToolbar = () => {

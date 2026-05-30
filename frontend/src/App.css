@@ -383,6 +383,22 @@ body {
   outline-offset: -2px;
 }
 
+.abc-header-input {
+  width: 100%;
+  border: none;
+  background: rgba(255,255,255,0.15);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: #fff;
+  outline: 2px solid #4fc3f7;
+  outline-offset: -2px;
+  box-sizing: border-box;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .abc-cell-input::placeholder {
   color: #ccc;
 }
