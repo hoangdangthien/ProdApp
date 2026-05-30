@@ -375,7 +375,7 @@ function ABCPage() {
         cv("label", item.label || item.name),
         cv("platform", item.platform || ""),
         cv("element", item.element || ""),
-        cv("field", item.field || ""),
+        cv("region", item.region || ""),
         cv(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`]),
         cv(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`]),
         cv(`wct_${p}m_ago`, item[`wct_${p}m_ago`]),
@@ -695,7 +695,7 @@ function ABCPage() {
                       {renderCell("label", item.label || item.name, { position: "sticky", left: 0, background: "#fff", zIndex: 1, fontWeight: 600 })}
                       {renderCell("platform", item.platform)}
                       {renderCell("element", item.element)}
-                      {renderCell("field", item.field)}
+                      {renderCell("region", item.region)}
                       {renderCell(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`])}
                       {renderCell(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`])}
                       {renderCell(`wct_${p}m_ago`, item[`wct_${p}m_ago`])}
