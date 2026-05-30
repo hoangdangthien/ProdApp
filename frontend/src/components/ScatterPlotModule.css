@@ -1,0 +1,265 @@
+/* ScatterPlotModule — a self-contained, Spotfire-style scatter plot.
+   All classes are namespaced with `spm-` so the module can be dropped into
+   any page without colliding with the app's global styles. */
+
+.spm {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #c9c9c9;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Dark title bar, like the Spotfire visualization header */
+.spm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #4b4b4b;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.spm-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spm-header-icon {
+  opacity: 0.85;
+}
+
+.spm-edit-tab {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  position: absolute;
+  left: 0;
+  top: 48px;
+  background: #e6e6e6;
+  color: #444;
+  border: 1px solid #c9c9c9;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  padding: 6px 2px;
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 3;
+}
+.spm-edit-tab.active { background: #1976d2; color: #fff; }
+
+/* Playback / time toolbar */
+.spm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  background: #f3f3f3;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+
+.spm-btn-group { display: flex; gap: 2px; }
+
+.spm-btn {
+  width: 30px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #5a5a5a;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+}
+.spm-btn:hover { background: #6e6e6e; }
+.spm-btn:disabled { opacity: 0.4; cursor: default; }
+.spm-btn.play.active { background: #1976d2; }
+
+.spm-date-select {
+  height: 26px;
+  border: 1px solid #b5b5b5;
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 12px;
+  min-width: 120px;
+}
+
+.spm-slider {
+  flex: 1;
+  min-width: 120px;
+  max-width: 260px;
+  accent-color: #888;
+}
+
+.spm-speed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #555;
+}
+
+/* Chart area */
+.spm-plot {
+  position: relative;
+  padding: 4px;
+}
+
+.spm-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  color: #555;
+  z-index: 2;
+}
+
+.spm-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 13px;
+}
+
+/* Legend */
+.spm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  padding: 6px 10px 10px;
+  font-size: 12px;
+}
+.spm-legend-dot { font-weight: bold; margin-right: 4px; }
+
+/* Property inspector (right-hand panel) */
+.spm-inspector {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100%;
+  background: #2f2f2f;
+  color: #e8e8e8;
+  border-left: 1px solid #1c1c1c;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+
+.spm-insp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #262626;
+  padding: 8px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid #1c1c1c;
+}
+.spm-insp-close {
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.spm-insp-axis-picker {
+  display: flex;
+  border-bottom: 1px solid #1c1c1c;
+}
+.spm-insp-axis-picker button {
+  flex: 1;
+  background: #2f2f2f;
+  color: #bbb;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.spm-insp-axis-picker button.active {
+  background: #1f1f1f;
+  color: #fff;
+  border-bottom: 2px solid #f0a500;
+}
+
+.spm-insp-body { overflow-y: auto; padding: 4px 0; }
+
+.spm-insp-section-title {
+  background: #3a3a3a;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #ddd;
+}
+
+.spm-insp-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+}
+.spm-insp-row > label { color: #bbb; font-size: 12px; }
+
+.spm-seg {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.spm-seg-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #ddd;
+}
+.spm-radio {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #888;
+  display: inline-block;
+}
+.spm-radio.on { background: #f0a500; border-color: #f0a500; }
+
+.spm-insp-input {
+  background: #1c1c1c;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.spm-insp-input:disabled { opacity: 0.4; }
+
+.spm-insp-text {
+  background: #1c1c1c;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}

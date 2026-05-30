@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// Default the backend host to whatever machine served this page, so the app
+// works for any computer on the network (not just the server's own browser).
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000",
+  baseURL:
+    process.env.REACT_APP_API_URL ||
+    `http://${window.location.hostname}:8000`,
 });
 
 export const getFilters = () => API.get("/api/filters");

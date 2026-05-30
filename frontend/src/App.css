@@ -394,3 +394,83 @@ body {
   gap: 16px;
   margin-bottom: 20px;
 }
+
+/* Plot settings panel */
+.ps-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+  background: #fff;
+  padding: 16px 20px;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.ps-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ps-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a2e;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 6px;
+}
+
+.ps-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ps-axis-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ps-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ps-mini-label {
+  font-size: 11px;
+  color: #888;
+}
+
+.ps-input {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 12px;
+  background: #fafafa;
+  width: 56px;
+  box-sizing: border-box;
+}
+
+.ps-input-wide {
+  width: 100%;
+}
+
+.ps-input:focus {
+  border-color: #4fc3f7;
+  outline: none;
+}
+
+.ps-color {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
