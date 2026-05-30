@@ -375,7 +375,7 @@ function ABCPage() {
         cv("label", item.label || item.name),
         cv("platform", item.platform || ""),
         cv("element", item.element || ""),
-        cv("field", item.field || ""),
+        cv("region", item.region || ""),
         cv(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`]),
         cv(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`]),
         cv(`wct_${p}m_ago`, item[`wct_${p}m_ago`]),
@@ -614,7 +614,7 @@ function ABCPage() {
           {/* Detail Table */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
             <button className="abc-btn" onClick={exportToExcel} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
               Export Excel
             </button>
           </div>
@@ -695,7 +695,7 @@ function ABCPage() {
                       {renderCell("label", item.label || item.name, { position: "sticky", left: 0, background: "#fff", zIndex: 1, fontWeight: 600 })}
                       {renderCell("platform", item.platform)}
                       {renderCell("element", item.element)}
-                      {renderCell("field", item.field)}
+                      {renderCell("region", item.region)}
                       {renderCell(`liq_rate_${p}m_ago`, item[`liq_rate_${p}m_ago`])}
                       {renderCell(`oil_rate_${p}m_ago`, item[`oil_rate_${p}m_ago`])}
                       {renderCell(`wct_${p}m_ago`, item[`wct_${p}m_ago`])}
