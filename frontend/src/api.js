@@ -34,3 +34,6 @@ export const getElementNumbers = (params) =>
   API.get("/api/element-numbers", { params });
 
 export const getProductionDates = () => API.get("/api/production-dates");
+
+export const getYearlySummary = (year) =>
+  API.get("/api/production/yearly-summary", { params: { year } });

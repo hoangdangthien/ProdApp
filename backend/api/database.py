@@ -89,12 +89,13 @@ def get_production_multi(
             "Date": row.Date.isoformat() if row.Date else None,
             "OilRate": row.OilRate,
             "LiqRate": row.LiqRate,
+            "WaterRate": row.WaterRate,
             "GOR": row.GOR,
+            "WC": row.WC,
             "Qoil": row.Qoil,
+            "Qwater": row.Qwater,
             "Qliq": row.Qliq,
             "Qgas": row.Qgas,
-            "WC": row.WC,
-            "WaterRate": row.WaterRate,
         })
     return result
 
@@ -138,6 +139,58 @@ def get_production_dates(db: Session = Depends(get_db)):
         .all()
     )
     return [r[0].isoformat() for r in rows]
+
+
+@router.get("/production/yearly-summary")
+def get_yearly_production_summary(
+    year: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(
+            Master.Field,
+            Master.Platform,
+            func.sum(MonthlyProd.Qoil),
+        )
+        .join(Master, MonthlyProd.UniqueId == Master.UniqueId)
+        .filter(func.extract("year", MonthlyProd.Date) == year)
+        .group_by(Master.Field, Master.Platform)
+        .all()
+    )
+
+    by_field = {}
+    by_platform = {}
+    for field_name, platform_name, total_oil in rows:
+        f = field_name or "Unknown"
+        p = platform_name or "Unknown"
+        total = round(total_oil or 0, 2)
+        by_field[f] = by_field.get(f, 0) + total
+        by_platform[p] = by_platform.get(p, 0) + total
+
+    by_field_list = sorted(
+        [{"name": k, "oil": round(v, 2)} for k, v in by_field.items()],
+        key=lambda x: x["oil"], reverse=True,
+    )
+    by_platform_list = sorted(
+        [{"name": k, "oil": round(v, 2)} for k, v in by_platform.items()],
+        key=lambda x: x["oil"], reverse=True,
+    )
+
+    years = [
+        r[0] for r in db.query(
+            distinct(func.extract("year", MonthlyProd.Date))
+        )
+        .filter(MonthlyProd.Date.isnot(None))
+        .order_by(func.extract("year", MonthlyProd.Date).desc())
+        .all()
+    ]
+
+    return {
+        "year": year,
+        "available_years": [int(y) for y in years],
+        "by_field": by_field_list,
+        "by_platform": by_platform_list,
+    }
 
 
 @router.get("/element-numbers")
