@@ -56,7 +56,7 @@ class MonthlyInjOut(BaseModel):
     class Config:
         from_attributes = True
 
-class OOIP(BaseModel):
+class OOIPOut(BaseModel):
     Completion: str
     OOIP: Optional[float] = None
     RF: Optional[float] = None
