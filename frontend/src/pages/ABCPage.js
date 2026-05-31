@@ -117,6 +117,16 @@ function ABCPage() {
 
   useEffect(() => { runAnalysis(); }, [runAnalysis]);
 
+  // Clear cell & header overrides when fresh data arrives so stale edits
+  // don't mask new values after a date/period/filter change.
+  useEffect(() => {
+    if (!data) return;
+    setCellOverrides({});
+    setHeaderOverrides({});
+    localStorage.removeItem("abc_cell_overrides");
+    localStorage.removeItem("abc_header_overrides");
+  }, [data, scatterPeriod]);
+
   const items = data?.items || [];
 
   // Points for the Spotfire-style scatter module: X = Water/Liquid Rate Change,
