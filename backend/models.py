@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, Date, Float, UnicodeText
+from sqlalchemy import Column, String, Date, Float, Integer, UnicodeText
 from database import Base
 
 
@@ -8,6 +8,7 @@ class Master(Base):
 
     UniqueId = Column(String(50), primary_key=True)
     Region = Column(String(50))
+    Block = Column(String(50))
     WellBore = Column(String(50))
     WellName = Column(String(50))
     WellNumber = Column(String(50))
@@ -70,3 +71,82 @@ class MonthlyInj(Base):
     WaterInj_Rate = Column(Float)
     Pb = Column(Float)
     Note = Column(UnicodeText)
+
+class OOIP(Base):
+    __tablename__ = "OOIP"
+
+    Completion = Column(String(50), primary_key=True)
+    OOIP_value = Column("OOIP", Float)
+    RF = Column(Float)
+    EUR = Column(Float)
+    PVT_GOR = Column(Float)
+    PVT_Bo = Column(Float)
+    PVT_OilDensity = Column(Float)
+    PVT_OilDensityRes = Column(Float)
+    PVT_Viscosity = Column(Float)
+    PVT_Psat = Column(Float)
+    PVT_OilCompress = Column(Float)
+    PVT_Tini = Column(Float)
+    PVT_Pini = Column(Float)
+    PVT_VolExpand = Column(Float)
+    PVT_Sample = Column(UnicodeText)
+
+
+class CurrentCouncilPlan(Base):
+    __tablename__ = "CurrentCouncilPlan"
+
+    UniqueId = Column(String(50), primary_key=True)
+    Date = Column(Date, primary_key=True)
+    Case = Column(String(50), primary_key=True)
+    Qoil = Column(Float)
+    Qgas = Column(Float)
+    Qliq = Column(Float)
+    OilRate = Column(Float)
+    LiqRate = Column(Float)
+
+
+class WIT_Plan(Base):
+    __tablename__ = "WIT_Plan"
+
+    UniqueId = Column(String(50), primary_key=True)
+    Date = Column(Date, primary_key=True)
+    Case = Column(String(50), primary_key=True)
+    Qoil = Column(Float)
+    Qgas = Column(Float)
+    Qliq = Column(Float)
+    OilRate = Column(Float)
+    LiqRate = Column(Float)
+
+
+class WIT_Act(Base):
+    __tablename__ = "WIT_Act"
+
+    UniqueId = Column(String(50), primary_key=True)
+    Date = Column(Date, primary_key=True)
+    Case = Column(String(50), primary_key=True)
+    Qoil = Column(Float)
+    Qgas = Column(Float)
+    Qliq = Column(Float)
+    OilRate = Column(Float)
+    LiqRate = Column(Float)
+
+
+class PPD_Plan(Base):
+    __tablename__ = "PPD_Plan"
+
+    UniqueId = Column(String(50), primary_key=True)
+    Date = Column(Date, primary_key=True)
+    DayOn = Column(Float)
+    QWaterInj = Column(Float)
+    WaterInj_Rate = Column(Float)
+    Press_WH = Column(Float)
+    Note = Column(UnicodeText)
+
+
+class OTM(Base):
+    __tablename__ = "OTM"
+
+    OTMID = Column(String(50), primary_key=True)
+    Date = Column(Date, primary_key=True)
+    OTMProd = Column(Float)
+    OTMInj = Column(Float)

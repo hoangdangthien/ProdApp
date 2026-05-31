@@ -3,7 +3,7 @@ import random
 import math
 from datetime import date, timedelta
 from database import engine, Base, SessionLocal
-from models import Master, MonthlyProd, MonthlyInj
+from models import Master, MonthlyProd, MonthlyInj, OOIP, CurrentCouncilPlan, WIT_Plan, WIT_Act, PPD_Plan, OTM
 
 random.seed(42)
 
@@ -38,6 +38,7 @@ for fld in FIELDS:
                     "ElementNumber": elem,
                     "WellBore": f"WB-{uid_counter}",
                     "Region": "Block 09-1" if fld == "Bach Ho" else "Block 09-3" if fld == "Rong" else "Block 05-1a",
+                    "Block": "Block 09-1" if fld in ("Bach Ho", "Rong") else "Block 05-1a",
                     "Completion": random.choice(["Perf", "Gravel Pack", "Open Hole"]),
                     "WellStatus": random.choice(["Producing", "Producing", "Producing", "Shut-in"]),
                     "X_coord": 107.0 + random.uniform(-0.5, 0.5),
@@ -142,6 +143,83 @@ def generate_inj(uid, start, end):
     return rows
 
 
+PLAN_CASES = ["Base", "High", "Low"]
+PLAN_START = date(2025, 1, 1)
+PLAN_END = date(2030, 12, 1)
+
+
+def generate_plan_data(model_cls, uid, start, end):
+    rows = []
+    qi_oil = random.uniform(20, 200)
+    qi_liq = qi_oil * random.uniform(1.05, 1.4)
+    di = random.uniform(0.008, 0.03)
+    b = random.uniform(0.5, 1.2)
+    base_gor = random.uniform(60, 250)
+
+    for case in PLAN_CASES:
+        case_mult = {"Base": 1.0, "High": 1.2, "Low": 0.8}[case]
+        for i, dt in enumerate(month_range(start, end)):
+            days = 28 + random.randint(0, 3)
+            denom = (1 + b * di * i) ** (1 / b) if b > 0 else math.exp(di * i)
+            oil_rate = max(0.3, qi_oil * case_mult / denom + random.gauss(0, 1))
+            liq_rate = oil_rate * random.uniform(1.05, 1.5)
+            gas_rate = oil_rate * base_gor / 1000
+
+            qoil = oil_rate * days
+            qliq = liq_rate * days
+            qgas = gas_rate * days
+
+            rows.append(model_cls(
+                UniqueId=uid,
+                Date=dt,
+                Qoil=round(qoil, 3),
+                Qgas=round(qgas, 3),
+                Qliq=round(qliq, 3),
+                OilRate=round(oil_rate, 3),
+                LiqRate=round(liq_rate, 3),
+                Case=case,
+            ))
+    return rows
+
+
+def generate_ppd_plan(uid, start, end):
+    rows = []
+    qi = random.uniform(100, 500)
+    for i, dt in enumerate(month_range(start, end)):
+        days = 28 + random.randint(0, 3)
+        day_on = max(0, days - random.randint(0, 4))
+        if day_on == 0:
+            continue
+        rate = qi + random.gauss(0, 15)
+        rows.append(PPD_Plan(
+            UniqueId=uid,
+            Date=dt,
+            DayOn=day_on,
+            QWaterInj=round(rate * day_on, 3),
+            WaterInj_Rate=round(rate, 3),
+            Press_WH=round(random.uniform(80, 200), 1),
+            Note=None,
+        ))
+    return rows
+
+
+def generate_otm(completions, start, end):
+    rows = []
+    for comp in completions:
+        base_prod = random.uniform(500, 5000)
+        base_inj = random.uniform(200, 3000)
+        for i, dt in enumerate(month_range(start, end)):
+            prod = max(0, base_prod * (1 - 0.005 * i) + random.gauss(0, 100))
+            inj = max(0, base_inj + random.gauss(0, 80))
+            rows.append(OTM(
+                OTMID=comp,
+                Date=dt,
+                OTMProd=round(prod, 3),
+                OTMInj=round(inj, 3),
+            ))
+    return rows
+
+
 def seed():
     print("Creating tables...")
     Base.metadata.drop_all(bind=engine)
@@ -154,6 +232,7 @@ def seed():
             db.add(Master(
                 UniqueId=w["UniqueId"],
                 Region=w["Region"],
+                Block=w["Block"],
                 WellBore=w["WellBore"],
                 WellName=w["WellName"],
                 WellNumber=w["WellNumber"],
@@ -195,12 +274,101 @@ def seed():
             rows = generate_inj(uid, inj_start, END_DATE)
             db.add_all(rows)
 
+        print("Seeding OOIP data...")
+        ooip_records = [
+            OOIP(
+                Completion="Perf",
+                OOIP_value=45.6,
+                RF=0.32,
+                EUR=14.59,
+                PVT_GOR=180.0,
+                PVT_Bo=1.28,
+                PVT_OilDensity=0.845,
+                PVT_OilDensityRes=0.742,
+                PVT_Viscosity=1.15,
+                PVT_Psat=215.0,
+                PVT_OilCompress=12.5e-5,
+                PVT_Tini=126.0,
+                PVT_Pini=310.0,
+                PVT_VolExpand=1.08,
+                PVT_Sample="BH-1X DST#2 (Mio-Lower)",
+            ),
+            OOIP(
+                Completion="Gravel Pack",
+                OOIP_value=28.3,
+                RF=0.27,
+                EUR=7.64,
+                PVT_GOR=145.0,
+                PVT_Bo=1.22,
+                PVT_OilDensity=0.862,
+                PVT_OilDensityRes=0.758,
+                PVT_Viscosity=2.35,
+                PVT_Psat=188.0,
+                PVT_OilCompress=10.8e-5,
+                PVT_Tini=118.0,
+                PVT_Pini=285.0,
+                PVT_VolExpand=1.05,
+                PVT_Sample="RG-3P DST#1 (Oligocene)",
+            ),
+            OOIP(
+                Completion="Open Hole",
+                OOIP_value=62.1,
+                RF=0.38,
+                EUR=23.60,
+                PVT_GOR=250.0,
+                PVT_Bo=1.35,
+                PVT_OilDensity=0.828,
+                PVT_OilDensityRes=0.715,
+                PVT_Viscosity=0.82,
+                PVT_Psat=245.0,
+                PVT_OilCompress=14.2e-5,
+                PVT_Tini=135.0,
+                PVT_Pini=340.0,
+                PVT_VolExpand=1.12,
+                PVT_Sample="BH-5X DST#3 (Basement)",
+            ),
+        ]
+        db.add_all(ooip_records)
+
+        print("Seeding CurrentCouncilPlan...")
+        for w in WELLS:
+            rows = generate_plan_data(CurrentCouncilPlan, w["UniqueId"], PLAN_START, PLAN_END)
+            db.add_all(rows)
+
+        print("Seeding WIT_Plan...")
+        for w in WELLS:
+            rows = generate_plan_data(WIT_Plan, w["UniqueId"], PLAN_START, PLAN_END)
+            db.add_all(rows)
+
+        print("Seeding WIT_Act...")
+        for w in WELLS:
+            wit_act_end = min(END_DATE, date(2025, 12, 1))
+            rows = generate_plan_data(WIT_Act, w["UniqueId"], PLAN_START, wit_act_end)
+            db.add_all(rows)
+
+        print("Seeding PPD_Plan...")
+        for uid in INJECTOR_IDS:
+            rows = generate_ppd_plan(uid, PLAN_START, PLAN_END)
+            db.add_all(rows)
+
+        print("Seeding OTM...")
+        completions = list({w["Completion"] for w in WELLS})
+        rows = generate_otm(completions, START_DATE, END_DATE)
+        db.add_all(rows)
+
         db.commit()
 
         master_count = db.query(Master).count()
         prod_count = db.query(MonthlyProd).count()
         inj_count = db.query(MonthlyInj).count()
-        print(f"Done! Master: {master_count}, MonthlyProd: {prod_count}, MonthlyInj: {inj_count}")
+        ooip_count = db.query(OOIP).count()
+        ccp_count = db.query(CurrentCouncilPlan).count()
+        wit_plan_count = db.query(WIT_Plan).count()
+        wit_act_count = db.query(WIT_Act).count()
+        ppd_count = db.query(PPD_Plan).count()
+        otm_count = db.query(OTM).count()
+        print(f"Done! Master: {master_count}, MonthlyProd: {prod_count}, MonthlyInj: {inj_count}, OOIP: {ooip_count}")
+        print(f"  CurrentCouncilPlan: {ccp_count}, WIT_Plan: {wit_plan_count}, WIT_Act: {wit_act_count}, PPD_Plan: {ppd_count}, OTM: {otm_count}")
 
     finally:
         db.close()
