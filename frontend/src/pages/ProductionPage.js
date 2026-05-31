@@ -1,15 +1,98 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, Cell,
+  PieChart, Pie, Legend, Tooltip,
+  ResponsiveContainer, Cell,
 } from "recharts";
-import { getCascadingFilters, getProductionMulti, getYearlySummary } from "../api";
+import { getCascadingFilters, getProductionMulti, getYearlySummary, getReservoirSummary, getFieldReservoirBreakdown, getBlockFieldBreakdown } from "../api";
 import ProductionChartModule from "../components/ProductionChartModule";
+import ReservoirChartModule from "../components/ReservoirChartModule";
+import ProductionBarChart, { getChartWidth, downloadChartAsPng } from "../components/ProductionBarChart";
 
-const FIELD_COLORS = [
-  "#2e7d32", "#1976d2", "#e65100", "#6a1b9a", "#00838f",
+// ── Field color dictionary (line 11) ──
+const FIELD_COLOR_MAP = {
+  "Bach Ho":   "#2e7d32",
+  "Dai Hung":  "#1976d2",
+  "Rong":      "#e65100",
+};
+
+// ── Reservoir color dictionary (line 17) ──
+const RESERVOIR_COLOR_MAP = {
+  "Basement":  "#d32f2f",
+  "Mio-Lower": "#1976d2",
+  "Mio-Upper": "#00838f",
+  "Oligocene": "#6a1b9a",
+};
+
+const FALLBACK_COLORS = [
   "#c62828", "#ef6c00", "#283593", "#00695c", "#ad1457",
+  "#f57c00", "#0288d1", "#388e3c", "#7b1fa2", "#00acc1",
 ];
+
+function getFieldColor(name, index) {
+  return FIELD_COLOR_MAP[name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+}
+
+function getReservoirColor(name, index) {
+  return RESERVOIR_COLOR_MAP[name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+}
+
+function PieChartCard({ title, pieData, totalValue, tooltipLabel }) {
+  const plotRef = useRef(null);
+  const handleDownload = useCallback(() => {
+    const svg = plotRef.current?.querySelector("svg");
+    const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
+    downloadChartAsPng(svg, safeName);
+  }, [title]);
+
+  return (
+    <div className="spm" style={{ width: 500 }}>
+      <div className="spm-header">
+        <span className="spm-header-title">
+          <span className="spm-header-icon">⠿</span> {title}
+        </span>
+        {pieData.length > 0 && (
+          <button
+            onClick={handleDownload}
+            title="Download as PNG"
+            style={{
+              background: "#1976d2", border: "none", borderRadius: 4,
+              padding: "4px 10px", cursor: "pointer", fontSize: 12, color: "#fff",
+              fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+            }}
+          >
+            PNG
+          </button>
+        )}
+      </div>
+      <div className="spm-plot" ref={plotRef}>
+        {pieData.length === 0 ? (
+          <div className="spm-empty" style={{ height: 300 }}>No data</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={110}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                labelLine={{ strokeWidth: 1 }}
+                fontSize={12}
+              >
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v) => [`${v.toLocaleString()} t (${totalValue > 0 ? ((v / totalValue) * 100).toFixed(1) : 0}%)`, tooltipLabel]} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ProductionPage() {
   const [filters, setFilters] = useState({ fields: [], reservoirs: [], platforms: [], unique_ids: [] });
@@ -24,6 +107,17 @@ function ProductionPage() {
   const [availableYears, setAvailableYears] = useState([]);
   const [summaryByField, setSummaryByField] = useState([]);
   const [summaryByPlatform, setSummaryByPlatform] = useState([]);
+
+  const [fieldBreakdown, setFieldBreakdown] = useState([]);
+  const [selectedBreakdownField, setSelectedBreakdownField] = useState("");
+
+  const [blockBreakdown, setBlockBreakdown] = useState([]);
+  const [selectedBlock, setSelectedBlock] = useState("");
+
+  const [resField, setResField] = useState("");
+  const [resReservoir, setResReservoir] = useState("");
+  const [reservoirData, setReservoirData] = useState([]);
+  const [reservoirLoading, setReservoirLoading] = useState(false);
 
   const loadFilters = useCallback(async () => {
     const params = {};
@@ -56,12 +150,40 @@ function ProductionPage() {
   }, [selectedYear]);
 
   useEffect(() => {
+    if (!selectedYear) return;
+    getFieldReservoirBreakdown(selectedYear).then((res) => {
+      setFieldBreakdown(res.data);
+      if (res.data.length > 0 && !selectedBreakdownField) {
+        setSelectedBreakdownField(res.data[0].field);
+      }
+    }).catch(() => {});
+  }, [selectedYear]);
+
+  useEffect(() => {
+    if (!selectedYear) return;
+    getBlockFieldBreakdown(selectedYear).then((res) => {
+      setBlockBreakdown(res.data);
+      if (res.data.length > 0 && !selectedBlock) {
+        setSelectedBlock(res.data[0].block);
+      }
+    }).catch(() => {});
+  }, [selectedYear]);
+
+  useEffect(() => {
     if (selectedIds.length === 0) { setProdData({}); return; }
     setLoading(true);
     getProductionMulti(selectedIds)
       .then((res) => setProdData(res.data))
       .finally(() => setLoading(false));
   }, [selectedIds]);
+
+  useEffect(() => {
+    if (!resField || !resReservoir) { setReservoirData([]); return; }
+    setReservoirLoading(true);
+    getReservoirSummary(resField, resReservoir)
+      .then((res) => setReservoirData(res.data))
+      .finally(() => setReservoirLoading(false));
+  }, [resField, resReservoir]);
 
   const toggleId = (id) => {
     setSelectedIds((prev) =>
@@ -158,63 +280,160 @@ function ProductionPage() {
           </select>
         </div>
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
           {/* Oil Production by Field */}
-          <div className="spm" style={{ flex: 1, minWidth: 400 }}>
-            <div className="spm-header">
-              <span className="spm-header-title">
-                <span className="spm-header-icon">⠿</span> Oil Production by Field — {selectedYear}
-              </span>
-            </div>
-            <div className="spm-plot">
-              {summaryByField.length === 0 ? (
-                <div className="spm-empty" style={{ height: 300 }}>No data</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={summaryByField} margin={{ top: 16, right: 16, bottom: 60, left: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 11 }} label={{ value: "Oil Production (t)", angle: -90, position: "insideLeft", style: { fontSize: 11, textAnchor: "middle" } }} />
-                    <Tooltip formatter={(v) => [typeof v === "number" ? v.toLocaleString() : v, "Oil (t)"]} />
-                    <Bar dataKey="oil" name="Oil Production">
-                      {summaryByField.map((_, i) => (
-                        <Cell key={i} fill={FIELD_COLORS[i % FIELD_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+          <div style={{ width: getChartWidth(summaryByField.length) }}>
+            <ProductionBarChart
+              title={`Oil Production by Field — ${selectedYear}`}
+              data={summaryByField}
+              cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
+            />
           </div>
 
           {/* Oil Production by Platform */}
-          <div className="spm" style={{ flex: 1, minWidth: 400 }}>
-            <div className="spm-header">
-              <span className="spm-header-title">
-                <span className="spm-header-icon">⠿</span> Oil Production by Platform — {selectedYear}
-              </span>
-            </div>
-            <div className="spm-plot">
-              {summaryByPlatform.length === 0 ? (
-                <div className="spm-empty" style={{ height: 300 }}>No data</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={summaryByPlatform} margin={{ top: 16, right: 16, bottom: 60, left: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 11 }} label={{ value: "Oil Production (t)", angle: -90, position: "insideLeft", style: { fontSize: 11, textAnchor: "middle" } }} />
-                    <Tooltip formatter={(v) => [typeof v === "number" ? v.toLocaleString() : v, "Oil (t)"]} />
-                    <Bar dataKey="oil" name="Oil Production">
-                      {summaryByPlatform.map((_, i) => (
-                        <Cell key={i} fill={FIELD_COLORS[i % FIELD_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+          <div style={{ width: getChartWidth(summaryByPlatform.length) }}>
+            <ProductionBarChart
+              title={`Oil Production by Platform — ${selectedYear}`}
+              data={summaryByPlatform}
+              cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
+            />
           </div>
         </div>
+
+        {/* Field-Reservoir Qoil Breakdown */}
+        {fieldBreakdown.length > 0 && (() => {
+          const selectedData = fieldBreakdown.find((f) => f.field === selectedBreakdownField);
+          const barData = selectedData
+            ? [...selectedData.reservoirs.map((r) => ({
+                name: r.name, oil: r.oil,
+                council_plan_final: r.council_plan_final || 0,
+                type: "reservoir",
+              })),
+               {
+                name: `${selectedData.field} (Total)`, oil: selectedData.total,
+                council_plan_final: selectedData.council_plan_final || 0,
+                type: "total",
+               }]
+            : [];
+          const pieData = selectedData
+            ? selectedData.reservoirs.map((r, i) => ({
+                name: r.name,
+                value: r.oil,
+                fill: getReservoirColor(r.name, i),
+              }))
+            : [];
+          const totalOil = selectedData ? selectedData.total : 0;
+
+          return (
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
+              <div style={{ width: getChartWidth(barData.length, true) }}>
+                <ProductionBarChart
+                  title={`Qoil by Reservoir in Field — ${selectedYear}`}
+                  data={barData}
+                  compareKey="council_plan_final"
+                  yLabel="Qoil (t)"
+                  tooltipLabel="Thực tế (t)"
+                  compareLabel="Kế hoạch (t)"
+                  cellColorFn={(entry, i, isCompare) =>
+                    entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getReservoirColor(entry.name, i)
+                  }
+                  headerRight={
+                    <select
+                      value={selectedBreakdownField}
+                      onChange={(e) => setSelectedBreakdownField(e.target.value)}
+                      style={{ marginLeft: 12, padding: "3px 8px", fontSize: 13 }}
+                    >
+                      {fieldBreakdown.map((f) => (
+                        <option key={f.field} value={f.field}>{f.field}</option>
+                      ))}
+                    </select>
+                  }
+                />
+              </div>
+
+              <PieChartCard
+                title={`Reservoir Share — ${selectedBreakdownField} (${selectedYear})`}
+                pieData={pieData}
+                totalValue={totalOil}
+                tooltipLabel="Qoil"
+              />
+            </div>
+          );
+        })()}
+
+        {/* Block-Field Qoil Breakdown */}
+        {blockBreakdown.length > 0 && (() => {
+          const selectedData = blockBreakdown.find((b) => b.block === selectedBlock);
+          const blockBarData = selectedData
+            ? [...selectedData.fields.map((f) => ({
+                name: f.name, oil: f.oil,
+                council_plan_final: f.council_plan_final || 0,
+                type: "field",
+              })),
+               {
+                name: `${selectedData.block} (Total)`, oil: selectedData.total,
+                council_plan_final: selectedData.council_plan_final || 0,
+                type: "total",
+               }]
+            : [];
+          const blockPieData = selectedData
+            ? selectedData.fields.map((f, i) => ({
+                name: f.name,
+                value: f.oil,
+                fill: getFieldColor(f.name, i),
+              }))
+            : [];
+          const blockTotalOil = selectedData ? selectedData.total : 0;
+
+          return (
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
+              <div style={{ width: getChartWidth(blockBarData.length, true) }}>
+                <ProductionBarChart
+                  title={`Qoil by Field in Block — ${selectedYear}`}
+                  data={blockBarData}
+                  compareKey="council_plan_final"
+                  yLabel="Qoil (t)"
+                  tooltipLabel="Thực tế (t)"
+                  compareLabel="Kế hoạch (t)"
+                  cellColorFn={(entry, i, isCompare) =>
+                    entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getFieldColor(entry.name, i)
+                  }
+                  headerRight={
+                    <select
+                      value={selectedBlock}
+                      onChange={(e) => setSelectedBlock(e.target.value)}
+                      style={{ marginLeft: 12, padding: "3px 8px", fontSize: 13 }}
+                    >
+                      {blockBreakdown.map((b) => (
+                        <option key={b.block} value={b.block}>{b.block}</option>
+                      ))}
+                    </select>
+                  }
+                />
+              </div>
+
+              <PieChartCard
+                title={`Field Share — ${selectedBlock} (${selectedYear})`}
+                pieData={blockPieData}
+                totalValue={blockTotalOil}
+                tooltipLabel="Qoil"
+              />
+            </div>
+          );
+        })()}
+
+        {/* Reservoir-level chart with VRR */}
+        <ReservoirChartModule
+          fields={filters.fields}
+          reservoirs={filters.reservoirs}
+          resField={resField}
+          resReservoir={resReservoir}
+          onFieldChange={(v) => { setResField(v); setResReservoir(""); }}
+          onReservoirChange={setResReservoir}
+          data={reservoirData}
+          loading={reservoirLoading}
+          allFilters={filters}
+        />
 
         {/* Aggregated well production chart */}
         {loading ? (

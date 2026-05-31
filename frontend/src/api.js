@@ -37,3 +37,12 @@ export const getProductionDates = () => API.get("/api/production-dates");
 
 export const getYearlySummary = (year) =>
   API.get("/api/production/yearly-summary", { params: { year } });
+
+export const getReservoirSummary = (field, reservoir) =>
+  API.get("/api/production/reservoir-summary", { params: { field, reservoir } });
+
+export const getFieldReservoirBreakdown = (year) =>
+  API.get("/api/production/field-reservoir-breakdown", { params: { year } });
+
+export const getBlockFieldBreakdown = (year) =>
+  API.get("/api/production/block-field-breakdown", { params: { year } });
