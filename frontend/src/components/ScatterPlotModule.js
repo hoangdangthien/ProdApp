@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid,
   Tooltip, ReferenceLine, Cell, LabelList, ResponsiveContainer,
 } from "recharts";
 import "./ScatterPlotModule.css";
+import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
+import EditableLabel from "./EditableLabel";
+import EditableValueLabel from "./EditableValueLabel";
 
 /*
  * ScatterPlotModule
@@ -115,6 +118,18 @@ function ScatterPlotModule({
   const [customMode, setCustomMode] = useState({});
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(playInterval);
+  const [legendOverrides, setLegendOverrides] = useState({});
+  const [valueOverrides, setValueOverrides] = useState({});
+  const handleValueOverride = useCallback((index, val) => {
+    setValueOverrides((prev) => ({ ...prev, [index]: val }));
+  }, []);
+  const chartRef = useRef(null);
+
+  const handleDownload = useCallback(() => {
+    const svg = chartRef.current?.querySelector("svg");
+    const safeName = (title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
+    downloadChartAsPng(svg, safeName);
+  }, [title]);
 
   const update = useCallback((updater) => {
     setSettings((prev) => {
@@ -487,6 +502,7 @@ function ScatterPlotModule({
         <span className="spm-header-title">
           <span className="spm-header-icon">⠿</span> {title}
         </span>
+        {data.length > 0 && <DownloadPngButton onClick={handleDownload} />}
       </div>
 
       <div
@@ -498,7 +514,7 @@ function ScatterPlotModule({
 
       {renderToolbar()}
 
-      <div className="spm-plot">
+      <div className="spm-plot" ref={chartRef}>
         {loading && <div className="spm-loading">Loading…</div>}
         {data.length === 0 ? (
           <div className="spm-empty" style={{ height }}>No data</div>
@@ -539,7 +555,9 @@ function ScatterPlotModule({
                   <Cell key={i} fill={fillFor(entry)} />
                 ))}
                 {settings.showLabels && (
-                  <LabelList dataKey="label" position="top" style={{ fontSize: 9, fill: "#000", fontWeight: 600 }} />
+                  <LabelList dataKey="label" position="top" content={(props) => (
+                    <EditableValueLabel {...props} fontSize={9} fontWeight={600} fill="#000" formatter={(v) => v} overrides={valueOverrides} onOverride={handleValueOverride} />
+                  )} />
                 )}
               </Scatter>
             </ScatterChart>
@@ -552,7 +570,10 @@ function ScatterPlotModule({
           {legendItems.map((item) => (
             <span key={item.key}>
               <span className="spm-legend-dot" style={{ color: item.color }}>&bull;</span>
-              {item.label}
+              <EditableLabel
+                value={legendOverrides[item.key] || item.label}
+                onChange={(v) => setLegendOverrides((prev) => ({ ...prev, [item.key]: v }))}
+              />
             </span>
           ))}
         </div>

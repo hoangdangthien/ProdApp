@@ -394,9 +394,9 @@ def get_reservoir_production_summary(
     db: Session = Depends(get_db),
 ):
     """
-    Returns monthly Qoil, GOR, WC, and VRR for a specific reservoir in a field.
+    Returns monthly OilRate, GOR, WC, and VRR for a specific reservoir in a field.
     VRR = Qinj / Qprod
-    Qprod = sum(Qoil)*PVT_Bo/PVT_OilDensity + sum(Qwater)
+    Qprod = sum(OilRate)*PVT_Bo/PVT_OilDensity + sum(Qwater)
     """
     well_ids = [
         r[0] for r in db.query(Master.UniqueId)
@@ -478,7 +478,7 @@ def get_reservoir_production_summary(
 
         result.append({
             "Date": f"{yr:04d}-{mn:02d}",
-            "Qoil": round(sum_qoil, 2),
+            "OilRate": round(sum_qoil, 2),
             "GOR": round(gor, 2),
             "WC": round(wc, 2),
             "VRR": round(vrr, 3) if vrr is not None else None,

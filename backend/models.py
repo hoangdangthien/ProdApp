@@ -1,6 +1,24 @@
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, Date, Float, Integer, UnicodeText
+from sqlalchemy import Column, String, Float, Integer, UnicodeText
+from sqlalchemy.types import Date as _Date
 from database import Base
+import datetime
+
+
+class Date(_Date):
+    """Date type that handles pyodbc returning native date objects instead of strings."""
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, datetime.datetime):
+                return value.date()
+            if isinstance(value, datetime.date):
+                return value
+            if isinstance(value, str):
+                return datetime.date.fromisoformat(value)
+            return value
+        return process
 
 
 class Master(Base):

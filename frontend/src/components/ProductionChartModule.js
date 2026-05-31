@@ -1,9 +1,12 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, Legend, ResponsiveContainer, LabelList,
 } from "recharts";
 import "./ScatterPlotModule.css";
+import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
+import EditableLabel from "./EditableLabel";
+import EditableValueLabel from "./EditableValueLabel";
 
 /*
  * ProductionChartModule
@@ -40,7 +43,23 @@ const AXES = [
 
 const defaultAxis = (title) => ({ min: "", max: "", title });
 
-function ProductionChartModule({ title = "Production", data = [], storageKey, height = 420 }) {
+function ProductionChartModule({ title = "Production", data = [], storageKey, height = 420, showDataLabels: initialShowDataLabels = false }) {
+  const [seriesLabels, setSeriesLabels] = useState({
+    OilRate: SERIES.OilRate.label,
+    LiqRate: SERIES.LiqRate.label,
+    WC: SERIES.WC.label,
+    GOR: SERIES.GOR.label,
+  });
+  const [showDataLabels, setShowDataLabels] = useState(initialShowDataLabels);
+  const [valueOverrides, setValueOverrides] = useState({});
+  const handleValueOverride = useCallback((seriesKey) => (index, val) => {
+    setValueOverrides((prev) => ({ ...prev, [seriesKey]: { ...(prev[seriesKey] || {}), [index]: val } }));
+  }, []);
+
+  const handleLabelChange = useCallback((key, val) => {
+    setSeriesLabels((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
   const [settings, setSettings] = useState(() => {
     const base = {
       rate: defaultAxis("Oil / Liquid Rate (t/d)"),
@@ -63,9 +82,14 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
 
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorAxis, setInspectorAxis] = useState("rate");
-  // Tracks which Default/Custom fields the user has explicitly switched to
-  // "Custom", so clearing the input mid-edit doesn't snap back to Default.
   const [customMode, setCustomMode] = useState({});
+  const chartRef = useRef(null);
+
+  const handleDownload = useCallback(() => {
+    const svg = chartRef.current?.querySelector("svg");
+    const safeName = (title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
+    downloadChartAsPng(svg, safeName);
+  }, [title]);
 
   const update = useCallback((updater) => {
     setSettings((prev) => {
@@ -156,6 +180,19 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
               onChange={(e) => setAxis(axis, "title", e.target.value)}
             />
           </div>
+
+          <div className="spm-insp-section-title">Data Labels</div>
+          <div className="spm-insp-row">
+            <label>Show labels</label>
+            <div className="spm-seg">
+              <span className="spm-seg-opt" onClick={() => setShowDataLabels(true)}>
+                <span className={`spm-radio ${showDataLabels ? "on" : ""}`} />Show
+              </span>
+              <span className="spm-seg-opt" onClick={() => setShowDataLabels(false)}>
+                <span className={`spm-radio ${!showDataLabels ? "on" : ""}`} />Hide
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -167,6 +204,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
         <span className="spm-header-title">
           <span className="spm-header-icon">⠿</span> {title}
         </span>
+        {data.length > 0 && <DownloadPngButton onClick={handleDownload} />}
       </div>
 
       <div
@@ -176,7 +214,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
         Edit
       </div>
 
-      <div className="spm-plot">
+      <div className="spm-plot" ref={chartRef}>
         {data.length === 0 ? (
           <div className="spm-empty" style={{ height }}>No data</div>
         ) : (
@@ -220,19 +258,47 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
               <Tooltip
                 formatter={(value, name) => [
                   typeof value === "number" ? value.toFixed(2) : value,
-                  SERIES[name]?.label || name,
+                  seriesLabels[name] || name,
                 ]}
               />
-              <Legend formatter={(name) => SERIES[name]?.label || name} />
+              <Legend content={({ payload }) => (
+                <div style={{ display: "flex", justifyContent: "center", gap: 16, fontSize: 11, marginTop: 4 }}>
+                  {payload.map((entry, i) => (
+                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ width: 14, height: 3, backgroundColor: entry.color, display: "inline-block", borderRadius: 1 }} />
+                      <EditableLabel
+                        value={seriesLabels[entry.value] || entry.value}
+                        onChange={(v) => handleLabelChange(entry.value, v)}
+                      />
+                    </span>
+                  ))}
+                </div>
+              )} />
 
               <Line yAxisId="rate" type="monotone" dataKey="OilRate" name="OilRate"
-                stroke={SERIES.OilRate.color} strokeWidth={2} dot={false} />
+                stroke={SERIES.OilRate.color} strokeWidth={2} dot={false}>
+                {showDataLabels && <LabelList dataKey="OilRate" position="top" content={(props) => (
+                  <EditableValueLabel {...props} fontSize={9} fontWeight={500} formatter={(v) => typeof v === "number" ? v.toFixed(1) : v} overrides={valueOverrides.OilRate} onOverride={handleValueOverride("OilRate")} />
+                )} />}
+              </Line>
               <Line yAxisId="rate" type="monotone" dataKey="LiqRate" name="LiqRate"
-                stroke={SERIES.LiqRate.color} strokeWidth={2} dot={false} />
+                stroke={SERIES.LiqRate.color} strokeWidth={2} dot={false}>
+                {showDataLabels && <LabelList dataKey="LiqRate" position="top" content={(props) => (
+                  <EditableValueLabel {...props} fontSize={9} fontWeight={500} formatter={(v) => typeof v === "number" ? v.toFixed(1) : v} overrides={valueOverrides.LiqRate} onOverride={handleValueOverride("LiqRate")} />
+                )} />}
+              </Line>
               <Line yAxisId="wc" type="monotone" dataKey="WC" name="WC"
-                stroke={SERIES.WC.color} strokeWidth={2} dot={false} connectNulls />
+                stroke={SERIES.WC.color} strokeWidth={2} dot={false} connectNulls>
+                {showDataLabels && <LabelList dataKey="WC" position="top" content={(props) => (
+                  <EditableValueLabel {...props} fontSize={9} fontWeight={500} formatter={(v) => typeof v === "number" ? v.toFixed(1) : v} overrides={valueOverrides.WC} onOverride={handleValueOverride("WC")} />
+                )} />}
+              </Line>
               <Line yAxisId="gor" type="monotone" dataKey="GOR" name="GOR"
-                stroke={SERIES.GOR.color} strokeWidth={2} dot={false} />
+                stroke={SERIES.GOR.color} strokeWidth={2} dot={false}>
+                {showDataLabels && <LabelList dataKey="GOR" position="top" content={(props) => (
+                  <EditableValueLabel {...props} fontSize={9} fontWeight={500} formatter={(v) => typeof v === "number" ? v.toFixed(1) : v} overrides={valueOverrides.GOR} onOverride={handleValueOverride("GOR")} />
+                )} />}
+              </Line>
             </ComposedChart>
           </ResponsiveContainer>
         )}

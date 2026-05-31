@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-  ResponsiveContainer, ReferenceLine, LabelList,
-} from "recharts";
 import { getFilters, getABC, getElementNumbers, getProductionDates } from "../api";
 import ScatterPlotModule from "../components/ScatterPlotModule";
+import ProductionBarChart from "../components/ProductionBarChart";
 
 // Palette used to auto-assign colors when coloring points by a category
 const PALETTE = [
@@ -641,45 +638,21 @@ function ABCPage() {
               .sort((a, b) => a.deltaOil - b.deltaOil);
             if (sorted.length === 0) return null;
             return (
-              <div className="chart-card" style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: "0 0 12px 0" }}>
-                  Top 10 Oil Rate Change ({scatterPeriod}M), t/d
-                </h3>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={sorted} margin={{ top: 20, right: 20, left: 10, bottom: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fill: "#000", fontSize: 11 }}
-                      angle={-45}
-                      textAnchor="end"
-                      interval={0}
-                      height={80}
-                    />
-                    <YAxis tick={{ fill: "#000", fontSize: 12 }} domain={([dataMin, dataMax]) => [Math.floor(dataMin) - 2, Math.ceil(dataMax) + 2]} />
-                    <Tooltip
-                      formatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
-                      contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 6 }}
-                      labelStyle={{ color: "#fff" }}
-                    />
-                    <ReferenceLine y={0} stroke="#666" />
-                    <Bar dataKey="deltaOil" radius={[4, 4, 0, 0]}>
-                      {sorted.map((entry, idx) => (
-                        <Cell
-                          key={idx}
-                          fill={entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
-                        />
-                      ))}
-                      <LabelList
-                        dataKey="deltaOil"
-                        position="top"
-                        formatter={(v) => v.toFixed(1)}
-                        style={{ fill: "#000", fontSize: 11, fontWeight: 600 }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ProductionBarChart
+                title={`Top 10 Oil Rate Change (${scatterPeriod}M), t/d`}
+                data={sorted}
+                dataKey="deltaOil"
+                nameKey="name"
+                yLabel="ΔQ_oil (t/d)"
+                tooltipLabel="ΔQ_oil"
+                height={400}
+                referenceLineY={0}
+                showBarLabels
+                barLabelFormatter={(v) => v.toFixed(1)}
+                yDomain={([dataMin, dataMax]) => [Math.floor(dataMin * 1.15) - 2, Math.ceil(dataMax * 1.15) + 2]}
+                cellColorFn={(entry) => entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
+                tooltipFormatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
+              />
             );
           })()}
 

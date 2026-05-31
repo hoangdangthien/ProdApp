@@ -1,8 +1,11 @@
 import React, { useRef, useCallback, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  Cell, Legend,
+  Cell, Legend, ReferenceLine, LabelList,
 } from "recharts";
+import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
+import EditableLabel from "./EditableLabel";
+import EditableValueLabel from "./EditableValueLabel";
 
 const DEFAULT_COLORS = [
   "#2e7d32", "#1976d2", "#e65100", "#6a1b9a", "#00838f",
@@ -12,7 +15,7 @@ const DEFAULT_COLORS = [
 
 const BAR_WIDTH = 28;
 const BAR_GAP = 100;
-const MARGIN = { top: 16, right: 16, bottom: 80, left: 16 };
+const MARGIN = { top: 24, right: 16, bottom: 80, left: 16 };
 
 const MIN_CHART_WIDTH = 450;
 
@@ -21,54 +24,7 @@ function getChartWidth(barCount, grouped = false) {
   return Math.max(MIN_CHART_WIDTH, barCount * (BAR_WIDTH + gap) + MARGIN.left + MARGIN.right);
 }
 
-function downloadChartAsPng(svgElement, filename) {
-  if (!svgElement) return;
-  const svgData = new XMLSerializer().serializeToString(svgElement);
-  const canvas = document.createElement("canvas");
-  const scale = 2;
-  canvas.width = svgElement.width.baseVal.value * scale;
-  canvas.height = svgElement.height.baseVal.value * scale;
-  const ctx = canvas.getContext("2d");
-  ctx.scale(scale, scale);
-  const img = new Image();
-  img.onload = () => {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    const link = document.createElement("a");
-    link.download = filename;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-  img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
-}
 
-function EditableLabel({ value, onChange }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { setEditing(false); onChange(draft); }}
-        onKeyDown={(e) => { if (e.key === "Enter") { setEditing(false); onChange(draft); } }}
-        style={{ fontSize: 11, width: Math.max(40, draft.length * 7), border: "1px solid #999", borderRadius: 2, padding: "0 3px" }}
-      />
-    );
-  }
-  return (
-    <span
-      onClick={() => setEditing(true)}
-      style={{ cursor: "pointer", borderBottom: "1px dashed #aaa" }}
-      title="Click to edit"
-    >
-      {value}
-    </span>
-  );
-}
 
 function EditableXTick({ x, y, payload, nameOverrides, onNameChange }) {
   const original = payload.value;
@@ -108,6 +64,8 @@ function EditableXTick({ x, y, payload, nameOverrides, onNameChange }) {
   );
 }
 
+const GROUPED_COLORS = ["#d32f2f", "#212121"];
+
 function CustomLegend({ payload, labels, onLabelChange }) {
   return (
     <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 11, marginBottom: 4 }}>
@@ -115,7 +73,7 @@ function CustomLegend({ payload, labels, onLabelChange }) {
         <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
           <svg width={14} height={14}>
             <rect x={1} y={1} width={12} height={12}
-              fill={entry.dataKey === "oil" ? "#d32f2f" : "#212121"} />
+              fill={GROUPED_COLORS[i] || "#212121"} />
           </svg>
           <EditableLabel
             value={labels[i]}
@@ -140,6 +98,13 @@ function ProductionBarChart({
   height = 300,
   cellColorFn,
   headerRight,
+  referenceLineY,
+  showBarLabels = true,
+  barLabelFormatter = (v) => typeof v === "number" ? Math.round(v).toLocaleString() : v,
+  barLabelStyle,
+  yDomain,
+  barRadius = [4, 4, 0, 0],
+  tooltipFormatter,
 }) {
   const chartRef = useRef(null);
   const grouped = !!compareKey;
@@ -152,6 +117,26 @@ function ProductionBarChart({
   const [nameOverrides, setNameOverrides] = useState({});
   const handleNameChange = useCallback((original, newName) => {
     setNameOverrides((prev) => ({ ...prev, [original]: newName }));
+  }, []);
+
+  const [yMin, setYMin] = useState(yDomain && yDomain[0] != null ? String(yDomain[0]) : "");
+  const [yMax, setYMax] = useState(yDomain && yDomain[1] != null ? String(yDomain[1]) : "");
+  const effYDomain = (yMin !== "" || yMax !== "" || yDomain) ? [
+    yMin !== "" ? Number(yMin) : (yDomain && yDomain[0] != null ? yDomain[0] : "auto"),
+    yMax !== "" ? Number(yMax) : (yDomain && yDomain[1] != null ? yDomain[1] : "auto"),
+  ] : undefined;
+
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [editableYLabel, setEditableYLabel] = useState(yLabel);
+  const [labelsVisible, setLabelsVisible] = useState(showBarLabels);
+  const [valueOverrides, setValueOverrides] = useState({});
+  const [compareOverrides, setCompareOverrides] = useState({});
+  const handleValueOverride = useCallback((dataKeyName) => (index, val) => {
+    if (dataKeyName === "compare") {
+      setCompareOverrides((prev) => ({ ...prev, [index]: val }));
+    } else {
+      setValueOverrides((prev) => ({ ...prev, [index]: val }));
+    }
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -168,21 +153,17 @@ function ProductionBarChart({
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {headerRight}
-          {data.length > 0 && (
-            <button
-              onClick={handleDownload}
-              title="Download as PNG"
-              style={{
-                background: "#1976d2", border: "none", borderRadius: 4,
-                padding: "4px 10px", cursor: "pointer", fontSize: 12, color: "#fff",
-                fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-              }}
-            >
-              PNG
-            </button>
-          )}
+          {data.length > 0 && <DownloadPngButton onClick={handleDownload} />}
         </span>
       </div>
+
+      <div
+        className={`spm-edit-tab ${inspectorOpen ? "active" : ""}`}
+        onClick={() => setInspectorOpen((o) => !o)}
+      >
+        Edit
+      </div>
+
       <div className="spm-plot" ref={chartRef}>
         {data.length === 0 ? (
           <div className="spm-empty" style={{ height }}>No data</div>
@@ -208,28 +189,53 @@ function ProductionBarChart({
               />
               <YAxis
                 tick={{ fontSize: 11 }}
+                domain={effYDomain}
+                allowDataOverflow={yMin !== "" || yMax !== ""}
                 label={{
-                  value: yLabel,
+                  value: editableYLabel,
                   angle: -90,
                   position: "insideLeft",
                   style: { fontSize: 11, textAnchor: "middle" },
                 }}
               />
               <Tooltip
-                formatter={(v, name) => [
+                formatter={tooltipFormatter || ((v, name) => [
                   typeof v === "number" ? v.toLocaleString() : v,
                   name,
-                ]}
+                ])}
                 labelFormatter={(label) => nameOverrides[label] ?? label}
               />
-              {grouped && (
+              {referenceLineY != null && (
+                <ReferenceLine y={referenceLineY} stroke="#666" />
+              )}
+              {grouped ? (
                 <Legend
                   verticalAlign="top"
                   height={30}
                   content={<CustomLegend labels={legendLabels} onLabelChange={handleLabelChange} />}
                 />
+              ) : (
+                <Legend
+                  verticalAlign="top"
+                  height={30}
+                  content={({ payload }) => (
+                    <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 11, marginBottom: 4 }}>
+                      {payload.map((entry, i) => (
+                        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <svg width={14} height={14}>
+                            <rect x={1} y={1} width={12} height={12} fill={entry.color} />
+                          </svg>
+                          <EditableLabel
+                            value={legendLabels[0]}
+                            onChange={(v) => handleLabelChange(0, v)}
+                          />
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                />
               )}
-              <Bar dataKey={dataKey} name={grouped ? legendLabels[0] : tooltipLabel} barSize={BAR_WIDTH}>
+              <Bar dataKey={dataKey} name={grouped ? legendLabels[0] : tooltipLabel} barSize={BAR_WIDTH} radius={barRadius}>
                 {data.map((entry, i) => (
                   <Cell
                     key={i}
@@ -240,6 +246,22 @@ function ProductionBarChart({
                     )}
                   />
                 ))}
+                {labelsVisible && (
+                  <LabelList
+                    dataKey={dataKey}
+                    position="top"
+                    content={(props) => (
+                      <EditableValueLabel
+                        {...props}
+                        formatter={barLabelFormatter}
+                        fontSize={(barLabelStyle && barLabelStyle.fontSize) || 11}
+                        fontWeight={(barLabelStyle && barLabelStyle.fontWeight) || 600}
+                        overrides={valueOverrides}
+                        onOverride={handleValueOverride("primary")}
+                      />
+                    )}
+                  />
+                )}
               </Bar>
               {grouped && (
                 <Bar dataKey={compareKey} name={legendLabels[1]} barSize={BAR_WIDTH}>
@@ -249,12 +271,84 @@ function ProductionBarChart({
                       fill="#212121"
                     />
                   ))}
+                  {labelsVisible && (
+                    <LabelList
+                      dataKey={compareKey}
+                      position="top"
+                      content={(props) => (
+                        <EditableValueLabel
+                          {...props}
+                          formatter={barLabelFormatter}
+                          fill="#212121"
+                          fontSize={(barLabelStyle && barLabelStyle.fontSize) || 11}
+                          fontWeight={(barLabelStyle && barLabelStyle.fontWeight) || 600}
+                          overrides={compareOverrides}
+                          onOverride={handleValueOverride("compare")}
+                        />
+                      )}
+                    />
+                  )}
                 </Bar>
               )}
             </BarChart>
           </div>
         )}
       </div>
+
+      {inspectorOpen && (
+        <div className="spm-inspector">
+          <div className="spm-insp-header">
+            <span>Property Inspector</span>
+            <button className="spm-insp-close" onClick={() => setInspectorOpen(false)}>×</button>
+          </div>
+          <div className="spm-insp-body">
+            <div className="spm-insp-section-title">Y Axis</div>
+            <div className="spm-insp-row">
+              <label>Minimum</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                value={yMin}
+                placeholder="auto"
+                onChange={(e) => setYMin(e.target.value)}
+              />
+            </div>
+            <div className="spm-insp-row">
+              <label>Maximum</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                value={yMax}
+                placeholder="auto"
+                onChange={(e) => setYMax(e.target.value)}
+              />
+            </div>
+            <div className="spm-insp-section-title">Axis Title</div>
+            <div className="spm-insp-row" style={{ gridTemplateColumns: "1fr" }}>
+              <input
+                type="text"
+                className="spm-insp-text"
+                value={editableYLabel}
+                placeholder="Y axis title"
+                onChange={(e) => setEditableYLabel(e.target.value)}
+              />
+            </div>
+
+            <div className="spm-insp-section-title">Data Labels</div>
+            <div className="spm-insp-row">
+              <label>Show labels</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setLabelsVisible(true)}>
+                  <span className={`spm-radio ${labelsVisible ? "on" : ""}`} />Show
+                </span>
+                <span className="spm-seg-opt" onClick={() => setLabelsVisible(false)}>
+                  <span className={`spm-radio ${!labelsVisible ? "on" : ""}`} />Hide
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
