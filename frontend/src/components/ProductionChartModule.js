@@ -55,6 +55,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
     GOR: SERIES.GOR.label,
   });
   const [showDataLabels, setShowDataLabels] = useState(initialShowDataLabels);
+  const [showLegend, setShowLegend] = useState(true);
   const [valueOverrides, setValueOverrides] = useState({});
   const handleValueOverride = useCallback((seriesKey) => (index, val) => {
     setValueOverrides((prev) => ({ ...prev, [seriesKey]: { ...(prev[seriesKey] || {}), [index]: val } }));
@@ -220,6 +221,19 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
               </span>
             </div>
           </div>
+
+          <div className="spm-insp-section-title">Legend</div>
+          <div className="spm-insp-row">
+            <label>Show legend</label>
+            <div className="spm-seg">
+              <span className="spm-seg-opt" onClick={() => setShowLegend(true)}>
+                <span className={`spm-radio ${showLegend ? "on" : ""}`} />Show
+              </span>
+              <span className="spm-seg-opt" onClick={() => setShowLegend(false)}>
+                <span className={`spm-radio ${!showLegend ? "on" : ""}`} />Hide
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -288,7 +302,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
                   seriesLabels[name] || name,
                 ]}
               />
-              <Legend content={({ payload }) => (
+              {showLegend && <Legend content={({ payload }) => (
                 <div style={{ display: "flex", justifyContent: "center", gap: 16, fontSize: 11, marginTop: 4 }}>
                   {payload.map((entry, i) => (
                     <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -300,7 +314,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
                     </span>
                   ))}
                 </div>
-              )} />
+              )} />}
 
               <Line yAxisId="rate" type="monotone" dataKey="OilRate" name="OilRate"
                 stroke={SERIES.OilRate.color} strokeWidth={2} dot={false}>

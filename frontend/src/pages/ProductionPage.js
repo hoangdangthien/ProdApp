@@ -287,8 +287,8 @@ function ProductionPage() {
           </select>
         </div>
 
-        <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
-          <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
+        <div className="charts-row">
+          <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
             <ProductionBarChart
               title={`Oil Production by Field — ${selectedYear}`}
               data={summaryByField.map((d) => ({ ...d, oil: toKt(d.oil) }))}
@@ -299,7 +299,7 @@ function ProductionPage() {
               excludeDirections={["w", "nw", "sw"]}
             />
           </div>
-          <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
+          <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
             <ProductionBarChart
               title={`Oil Production by Platform — ${selectedYear}`}
               data={summaryByPlatform.map((d) => ({ ...d, oil: toKt(d.oil) }))}
@@ -337,8 +337,8 @@ function ProductionPage() {
           const totalOil = selectedData ? toKt(selectedData.total) : 0;
 
           return (
-            <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
-              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
+            <div className="charts-row" style={{ alignItems: "flex-start" }}>
+              <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
                 <ProductionBarChart
                   title={`Qoil by Reservoir in Field — ${selectedYear}`}
                   data={barData}
@@ -365,7 +365,7 @@ function ProductionPage() {
                 />
               </div>
 
-              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
+              <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
                 <PieChartCard
                   title={`Reservoir Share — ${selectedBreakdownField} (${selectedYear})`}
                   pieData={pieData}
@@ -403,8 +403,8 @@ function ProductionPage() {
           const blockTotalOil = selectedData ? toKt(selectedData.total) : 0;
 
           return (
-            <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
-              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
+            <div className="charts-row" style={{ alignItems: "flex-start" }}>
+              <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
                 <ProductionBarChart
                   title={`Qoil by Field in Block — ${selectedYear}`}
                   data={blockBarData}
@@ -431,7 +431,7 @@ function ProductionPage() {
                 />
               </div>
 
-              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
+              <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
                 <PieChartCard
                   title={`Field Share — ${selectedBlock} (${selectedYear})`}
                   pieData={blockPieData}

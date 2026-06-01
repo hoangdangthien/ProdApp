@@ -124,9 +124,10 @@ function ProductionBarChart({
   excludeDirections = [],
 }) {
   const chartRef = useRef(null);
-  const { size, style, containerRef, onResize } = useResizable(height);
+  const { size, style, containerRef, containerWidth, onResize } = useResizable(height);
   const grouped = !!compareKey;
-  const chartWidth = getChartWidth(data.length, grouped);
+  const minChartWidth = getChartWidth(data.length, grouped);
+  const chartWidth = containerWidth ? Math.max(minChartWidth, containerWidth - 8) : minChartWidth;
   const [legendLabels, setLegendLabels] = useState([tooltipLabel, compareLabel]);
   const handleLabelChange = useCallback((idx, val) => {
     setLegendLabels((prev) => { const next = [...prev]; next[idx] = val; return next; });
@@ -149,6 +150,7 @@ function ProductionBarChart({
   const [axisTitleSize, setAxisTitleSize] = useState(11);
   const [axisLabelSize, setAxisLabelSize] = useState(11);
   const [labelsVisible, setLabelsVisible] = useState(showBarLabels);
+  const [showLegend, setShowLegend] = useState(true);
 
   const handleDownload = useCallback(() => {
     const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
@@ -178,6 +180,26 @@ function ProductionBarChart({
         {data.length === 0 ? (
           <div className="spm-empty" style={{ height: size.height }}>No data</div>
         ) : (
+          <>
+          {showLegend && <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 11, marginBottom: 4 }}>
+            {grouped ? (
+              legendLabels.map((label, i) => (
+                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <svg width={14} height={14}>
+                    <rect x={1} y={1} width={12} height={12} fill={GROUPED_COLORS[i] || "#212121"} />
+                  </svg>
+                  <EditableLabel value={label} onChange={(v) => handleLabelChange(i, v)} />
+                </span>
+              ))
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <svg width={14} height={14}>
+                  <rect x={1} y={1} width={12} height={12} fill={cellColorFn ? cellColorFn(data[0]) : "#d32f2f"} />
+                </svg>
+                <EditableLabel value={legendLabels[0]} onChange={(v) => handleLabelChange(0, v)} />
+              </span>
+            )}
+          </div>}
           <div style={{ width: "100%", overflowX: "auto", display: "flex", justifyContent: "center" }}>
             <BarChart
               width={chartWidth}
@@ -218,33 +240,6 @@ function ProductionBarChart({
               />
               {referenceLineY != null && (
                 <ReferenceLine y={referenceLineY} stroke="#666" />
-              )}
-              {grouped ? (
-                <Legend
-                  verticalAlign="top"
-                  height={30}
-                  content={<CustomLegend labels={legendLabels} onLabelChange={handleLabelChange} />}
-                />
-              ) : (
-                <Legend
-                  verticalAlign="top"
-                  height={30}
-                  content={({ payload }) => (
-                    <div style={{ display: "flex", justifyContent: "center", gap: 20, fontSize: 11, marginBottom: 4 }}>
-                      {payload.map((entry, i) => (
-                        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          <svg width={14} height={14}>
-                            <rect x={1} y={1} width={12} height={12} fill={entry.color} />
-                          </svg>
-                          <EditableLabel
-                            value={legendLabels[0]}
-                            onChange={(v) => handleLabelChange(0, v)}
-                          />
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                />
               )}
               <Bar dataKey={dataKey} name={grouped ? legendLabels[0] : tooltipLabel} barSize={BAR_WIDTH} radius={barRadius}>
                 {data.map((entry, i) => (
@@ -299,6 +294,7 @@ function ProductionBarChart({
               )}
             </BarChart>
           </div>
+          </>
         )}
       </div>
 
@@ -372,6 +368,19 @@ function ProductionBarChart({
                 </span>
                 <span className="spm-seg-opt" onClick={() => setLabelsVisible(false)}>
                   <span className={`spm-radio ${!labelsVisible ? "on" : ""}`} />Hide
+                </span>
+              </div>
+            </div>
+
+            <div className="spm-insp-section-title">Legend</div>
+            <div className="spm-insp-row">
+              <label>Show legend</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setShowLegend(true)}>
+                  <span className={`spm-radio ${showLegend ? "on" : ""}`} />Show
+                </span>
+                <span className="spm-seg-opt" onClick={() => setShowLegend(false)}>
+                  <span className={`spm-radio ${!showLegend ? "on" : ""}`} />Hide
                 </span>
               </div>
             </div>

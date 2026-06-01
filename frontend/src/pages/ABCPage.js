@@ -461,7 +461,7 @@ function ABCPage() {
   };
 
   return (
-    <div style={{ flex: 1, padding: 20, overflowY: "auto" }}>
+    <div className="content-area">
       {/* Unified panel: stats left, controls right */}
       <div className="abc-panel">
         {/* Left: stats */}
@@ -638,21 +638,23 @@ function ABCPage() {
               .sort((a, b) => a.deltaOil - b.deltaOil);
             if (sorted.length === 0) return null;
             return (
-              <ProductionBarChart
-                title={`Top 10 Oil Rate Change (${scatterPeriod}M), t/d`}
-                data={sorted}
-                dataKey="deltaOil"
-                nameKey="name"
-                yLabel="ΔQ_oil (t/d)"
-                tooltipLabel="ΔQ_oil"
-                height={400}
-                referenceLineY={0}
-                showBarLabels
-                barLabelFormatter={(v) => v.toFixed(1)}
-                yDomain={([dataMin, dataMax]) => [Math.floor(dataMin * 1.15) - 2, Math.ceil(dataMax * 1.15) + 2]}
-                cellColorFn={(entry) => entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
-                tooltipFormatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
-              />
+              <div className="chart-card">
+                <ProductionBarChart
+                  title={`Top 10 Oil Rate Change (${scatterPeriod}M), t/d`}
+                  data={sorted}
+                  dataKey="deltaOil"
+                  nameKey="name"
+                  yLabel="ΔQ_oil (t/d)"
+                  tooltipLabel="ΔQ_oil"
+                  height={400}
+                  referenceLineY={0}
+                  showBarLabels
+                  barLabelFormatter={(v) => v.toFixed(1)}
+                  yDomain={([dataMin, dataMax]) => [Math.floor(dataMin * 1.15) - 2, Math.ceil(dataMax * 1.15) + 2]}
+                  cellColorFn={(entry) => entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
+                  tooltipFormatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
+                />
+              </div>
             );
           })()}
 

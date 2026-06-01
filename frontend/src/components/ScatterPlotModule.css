@@ -283,16 +283,56 @@
 }
 
 /* Resize handles — edges */
+/* Resize handles — edges */
 .spm-resize { position: absolute; z-index: 4; }
 .spm-resize:hover, .spm-resize:active { background: rgba(25, 118, 210, 0.25); }
 
-.spm-resize-n { top: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
-.spm-resize-s { bottom: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
-.spm-resize-e { right: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
-.spm-resize-w { left: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+.spm-resize-n { top: 0; left: 14px; right: 14px; height: 6px; cursor: ns-resize; }
+.spm-resize-s { bottom: 0; left: 14px; right: 14px; height: 6px; cursor: ns-resize; }
+.spm-resize-e { right: 0; top: 14px; bottom: 14px; width: 6px; cursor: ew-resize; }
+.spm-resize-w { left: 0; top: 14px; bottom: 14px; width: 6px; cursor: ew-resize; }
 
 /* Resize handles — corners */
-.spm-resize-ne { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; z-index: 5; }
-.spm-resize-nw { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; z-index: 5; }
-.spm-resize-se { bottom: 0; right: 0; width: 10px; height: 10px; cursor: nwse-resize; z-index: 5; }
-.spm-resize-sw { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; z-index: 5; }
+.spm-resize-ne { top: 0; right: 0; width: 14px; height: 14px; cursor: nesw-resize; z-index: 5; }
+.spm-resize-nw { top: 0; left: 0; width: 14px; height: 14px; cursor: nwse-resize; z-index: 5; }
+.spm-resize-se { bottom: 0; right: 0; width: 14px; height: 14px; cursor: nwse-resize; z-index: 5; }
+.spm-resize-sw { bottom: 0; left: 0; width: 14px; height: 14px; cursor: nesw-resize; z-index: 5; }
+
+/* Visible grip indicator on SE corner */
+.spm-resize-se::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #bbb;
+  border-bottom: 2px solid #bbb;
+}
+.spm:hover .spm-resize-se::after { border-color: #1976d2; }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .spm-inspector { width: 260px; }
+  .spm-toolbar { gap: 6px; padding: 4px 8px; }
+  .spm-slider { max-width: 180px; }
+}
+
+@media (max-width: 600px) {
+  .spm-inspector {
+    width: 100%;
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60vh;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+    border-left: none;
+    border-top: 1px solid #1c1c1c;
+  }
+  .spm-header { font-size: 12px; padding: 4px 8px; }
+  .spm-toolbar { flex-wrap: wrap; }
+  .spm-slider { max-width: 100%; min-width: 80px; }
+  .spm-legend { gap: 8px; font-size: 11px; }
+}

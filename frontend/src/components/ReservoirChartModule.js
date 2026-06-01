@@ -19,24 +19,45 @@ const COLORS = {
   VRR: "#7b1fa2",
 };
 
+const DEFAULT_LIMITS = {
+  qoil: { min: "", max: "" },
+  gor: { min: "", max: "" },
+  wc: { min: "0", max: "1" },
+  vrr: { min: "", max: "" },
+};
+
 function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, onReservoirChange, data, loading }) {
   const { size, style, containerRef, onResize } = useResizable(380);
   const [filteredReservoirs, setFilteredReservoirs] = useState([]);
   const [legendLabels, setLegendLabels] = useState({
-    OilRate: "Sản lượng dầu",
+    OilRate: "Lưu lượng dầu",
     GOR: "Tỉ số khí dầu",
     WC: "Độ ngập nước",
     VRR: "Hệ số bù khai thác",
   });
   const [showDataLabels, setShowDataLabels] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [axisTitleSize, setAxisTitleSize] = useState(11);
   const [axisLabelSize, setAxisLabelSize] = useState(11);
+  const [axisLimits, setAxisLimits] = useState(DEFAULT_LIMITS);
   const [valueOverrides, setValueOverrides] = useState({});
   const handleValueOverride = useCallback((seriesKey) => (index, val) => {
     setValueOverrides((prev) => ({ ...prev, [seriesKey]: { ...(prev[seriesKey] || {}), [index]: val } }));
   }, []);
   const chartRef = useRef(null);
+
+  const getDomain = useCallback((axisKey) => {
+    const l = axisLimits[axisKey];
+    if (!l) return undefined;
+    const lo = l.min !== "" ? Number(l.min) : "auto";
+    const hi = l.max !== "" ? Number(l.max) : "auto";
+    return [lo, hi];
+  }, [axisLimits]);
+
+  const handleAxisLimit = useCallback((axisKey, bound, val) => {
+    setAxisLimits((prev) => ({ ...prev, [axisKey]: { ...prev[axisKey], [bound]: val } }));
+  }, []);
 
   const handleLegendChange = useCallback((key, val) => {
     setLegendLabels((prev) => ({ ...prev, [key]: val }));
@@ -88,19 +109,36 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
           <div className="spm-empty" style={{ height: size.height }}>No data</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
+            <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 24, left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               <XAxis dataKey="Date" tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }} minTickGap={24} />
 
               <YAxis
                 yAxisId="qoil"
                 orientation="left"
-                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }}
-                label={{ value: "OilRate (t)", angle: -90, position: "insideLeft", style: { fontSize: axisTitleSize, fontFamily: FONT, fill: "#000", textAnchor: "middle" } }}
+                domain={getDomain("qoil")}
+                allowDataOverflow
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.OilRate }}
+                axisLine={{ stroke: COLORS.OilRate }}
+                tickLine={{ stroke: COLORS.OilRate }}
+                label={{ value: "OilRate (t)", angle: -90, position: "insideLeft", style: { fontSize: axisTitleSize, fontFamily: FONT, fill: COLORS.OilRate, textAnchor: "middle" } }}
+              />
+              <YAxis
+                yAxisId="wc"
+                orientation="left"
+                domain={getDomain("wc")}
+                allowDataOverflow
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.WC }}
+                axisLine={{ stroke: COLORS.WC }}
+                tickLine={{ stroke: COLORS.WC }}
+                width={50}
+                label={{ value: "WC", angle: -90, position: "insideLeft", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: COLORS.WC } }}
               />
               <YAxis
                 yAxisId="gor"
                 orientation="right"
+                domain={getDomain("gor")}
+                allowDataOverflow
                 width={60}
                 tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.GOR }}
                 axisLine={{ stroke: COLORS.GOR }}
@@ -108,18 +146,10 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
                 label={{ value: "GOR (m³/t)", angle: 90, position: "insideRight", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: COLORS.GOR } }}
               />
               <YAxis
-                yAxisId="wc"
-                orientation="right"
-                domain={[0, 100]}
-                tick={false}
-                axisLine={false}
-                tickLine={false}
-                width={1}
-                hide
-              />
-              <YAxis
                 yAxisId="vrr"
                 orientation="right"
+                domain={getDomain("vrr")}
+                allowDataOverflow
                 tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.VRR }}
                 axisLine={{ stroke: COLORS.VRR }}
                 tickLine={{ stroke: COLORS.VRR }}
@@ -128,7 +158,7 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
               />
 
               <Tooltip formatter={(value, name) => [typeof value === "number" ? value.toFixed(2) : value, name]} />
-              <Legend content={({ payload }) => {
+              {showLegend && <Legend content={({ payload }) => {
                 const order = ["OilRate", "GOR", "WC", "VRR"];
                 const sorted = order.map(key => payload.find(p => p.dataKey === key)).filter(Boolean);
                 return (
@@ -144,7 +174,7 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
                     ))}
                   </div>
                 );
-              }} />
+              }} />}
 
               <Line yAxisId="qoil" type="monotone" dataKey="OilRate" name={legendLabels.OilRate} stroke={COLORS.OilRate} strokeWidth={2} dot={{ r: 2, fill: COLORS.OilRate }}>
                 {showDataLabels && <LabelList dataKey="OilRate" position="top" content={(props) => (
@@ -202,6 +232,37 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
               />
             </div>
 
+            <div className="spm-insp-section-title">Axis Limits</div>
+            {[
+              { key: "qoil", label: "OilRate", color: COLORS.OilRate },
+              { key: "wc", label: "WC", color: COLORS.WC },
+              { key: "gor", label: "GOR", color: COLORS.GOR },
+              { key: "vrr", label: "VRR", color: COLORS.VRR },
+            ].map(({ key, label, color }) => (
+              <div key={key} className="spm-insp-row" style={{ flexWrap: "wrap" }}>
+                <label style={{ color, fontWeight: 600, minWidth: 60 }}>{label}</label>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input
+                    type="number"
+                    className="spm-insp-input"
+                    style={{ width: 60 }}
+                    placeholder="Min"
+                    value={axisLimits[key]?.min ?? ""}
+                    onChange={(e) => handleAxisLimit(key, "min", e.target.value)}
+                  />
+                  <span style={{ fontSize: 11 }}>–</span>
+                  <input
+                    type="number"
+                    className="spm-insp-input"
+                    style={{ width: 60 }}
+                    placeholder="Max"
+                    value={axisLimits[key]?.max ?? ""}
+                    onChange={(e) => handleAxisLimit(key, "max", e.target.value)}
+                  />
+                </div>
+              </div>
+            ))}
+
             <div className="spm-insp-section-title">Data Labels</div>
             <div className="spm-insp-row">
               <label>Show labels</label>
@@ -211,6 +272,19 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
                 </span>
                 <span className="spm-seg-opt" onClick={() => setShowDataLabels(false)}>
                   <span className={`spm-radio ${!showDataLabels ? "on" : ""}`} />Hide
+                </span>
+              </div>
+            </div>
+
+            <div className="spm-insp-section-title">Legend</div>
+            <div className="spm-insp-row">
+              <label>Show legend</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setShowLegend(true)}>
+                  <span className={`spm-radio ${showLegend ? "on" : ""}`} />Show
+                </span>
+                <span className="spm-seg-opt" onClick={() => setShowLegend(false)}>
+                  <span className={`spm-radio ${!showLegend ? "on" : ""}`} />Hide
                 </span>
               </div>
             </div>

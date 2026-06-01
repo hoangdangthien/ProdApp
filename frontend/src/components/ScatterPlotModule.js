@@ -123,6 +123,7 @@ function ScatterPlotModule({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(playInterval);
   const [legendOverrides, setLegendOverrides] = useState({});
+  const [showLegend, setShowLegend] = useState(true);
   const [valueOverrides, setValueOverrides] = useState({});
   const handleValueOverride = useCallback((index, val) => {
     setValueOverrides((prev) => ({ ...prev, [index]: val }));
@@ -382,6 +383,19 @@ function ScatterPlotModule({
               </span>
             </div>
           </div>
+
+          <div className="spm-insp-section-title">Legend</div>
+          <div className="spm-insp-row">
+            <label>Show legend</label>
+            <div className="spm-seg">
+              <span className="spm-seg-opt" onClick={() => setShowLegend(true)}>
+                <span className={`spm-radio ${showLegend ? "on" : ""}`} />Show
+              </span>
+              <span className="spm-seg-opt" onClick={() => setShowLegend(false)}>
+                <span className={`spm-radio ${!showLegend ? "on" : ""}`} />Hide
+              </span>
+            </div>
+          </div>
         </div>
       </>
     );
@@ -590,7 +604,7 @@ function ScatterPlotModule({
         )}
       </div>
 
-      {legendItems.length > 0 && (
+      {showLegend && legendItems.length > 0 && (
         <div className="spm-legend">
           {legendItems.map((item) => (
             <span key={item.key}>
