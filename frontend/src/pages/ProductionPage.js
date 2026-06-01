@@ -37,6 +37,11 @@ function getReservoirColor(name, index) {
   return RESERVOIR_COLOR_MAP[name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
+// Convert a value in tonnes to kilotonnes (÷1000), rounded to 1 decimal.
+const toKt = (v) => Math.round((Number(v) || 0) / 1000 * 10) / 10;
+// Bar/label formatter that keeps a single decimal for kt values.
+const fmtKt = (v) => (typeof v === "number" ? v.toFixed(1) : v);
+
 function PieChartCard({ title, pieData, totalValue, tooltipLabel, excludeDirections = [] }) {
   const plotRef = useRef(null);
   const { size, style, containerRef, onResize } = useResizable(300, 200, 150);
@@ -86,7 +91,7 @@ function PieChartCard({ title, pieData, totalValue, tooltipLabel, excludeDirecti
                   <Cell key={i} fill={entry.fill} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => [`${v.toLocaleString()} t (${totalValue > 0 ? ((v / totalValue) * 100).toFixed(1) : 0}%)`, tooltipLabel]} />
+              <Tooltip formatter={(v) => [`${v.toLocaleString()} kt (${totalValue > 0 ? ((v / totalValue) * 100).toFixed(1) : 0}%)`, tooltipLabel]} />
             </PieChart>
           </ResponsiveContainer>
         )}
@@ -219,10 +224,10 @@ function ProductionPage() {
         OilRate: Math.round(d.sumOilRate * 100) / 100,
         LiqRate: Math.round(d.sumLiqRate * 100) / 100,
         WaterRate: Math.round(d.sumWaterRate * 100) / 100,
-        Qoil: Math.round(d.sumQoil * 1000) / 1000,
-        Qgas: Math.round(d.sumQgas * 1000) / 1000,
-        Qwater: Math.round(d.sumQwater * 1000) / 1000,
-        Qliq: Math.round(d.sumQliq * 1000) / 1000,
+        Qoil: Math.round(d.sumQoil / 1000 * 10) / 10,
+        Qgas: Math.round(d.sumQgas) / 1000,
+        Qwater: Math.round(d.sumQwater / 1000 * 10) / 10,
+        Qliq: Math.round(d.sumQliq / 1000 * 10) / 10,
         GOR: d.sumQoil > 0 ? 1000*d.sumQgas / d.sumQoil : 0,
         WC: d.sumLiqRate > 0 ? Math.max(100 * d.sumWaterRate / d.sumLiqRate, 0.1) : null,
       }));
@@ -286,7 +291,10 @@ function ProductionPage() {
           <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
             <ProductionBarChart
               title={`Oil Production by Field — ${selectedYear}`}
-              data={summaryByField}
+              data={summaryByField.map((d) => ({ ...d, oil: toKt(d.oil) }))}
+              yLabel="Oil Production (kt)"
+              tooltipLabel="Oil (kt)"
+              barLabelFormatter={fmtKt}
               cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
               excludeDirections={["w", "nw", "sw"]}
             />
@@ -294,7 +302,10 @@ function ProductionPage() {
           <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
             <ProductionBarChart
               title={`Oil Production by Platform — ${selectedYear}`}
-              data={summaryByPlatform}
+              data={summaryByPlatform.map((d) => ({ ...d, oil: toKt(d.oil) }))}
+              yLabel="Oil Production (kt)"
+              tooltipLabel="Oil (kt)"
+              barLabelFormatter={fmtKt}
               cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
               excludeDirections={["e", "ne", "se"]}
             />
@@ -306,24 +317,24 @@ function ProductionPage() {
           const selectedData = fieldBreakdown.find((f) => f.field === selectedBreakdownField);
           const barData = selectedData
             ? [...selectedData.reservoirs.map((r) => ({
-                name: r.name, oil: r.oil,
-                council_plan_final: r.council_plan_final || 0,
+                name: r.name, oil: toKt(r.oil),
+                council_plan_final: toKt(r.council_plan_final || 0),
                 type: "reservoir",
               })),
                {
-                name: `${selectedData.field} (Total)`, oil: selectedData.total,
-                council_plan_final: selectedData.council_plan_final || 0,
+                name: `${selectedData.field} (Total)`, oil: toKt(selectedData.total),
+                council_plan_final: toKt(selectedData.council_plan_final || 0),
                 type: "total",
                }]
             : [];
           const pieData = selectedData
             ? selectedData.reservoirs.map((r, i) => ({
                 name: r.name,
-                value: r.oil,
+                value: toKt(r.oil),
                 fill: getReservoirColor(r.name, i),
               }))
             : [];
-          const totalOil = selectedData ? selectedData.total : 0;
+          const totalOil = selectedData ? toKt(selectedData.total) : 0;
 
           return (
             <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
@@ -332,9 +343,10 @@ function ProductionPage() {
                   title={`Qoil by Reservoir in Field — ${selectedYear}`}
                   data={barData}
                   compareKey="council_plan_final"
-                  yLabel="Qoil (t)"
-                  tooltipLabel="Thực tế (t)"
-                  compareLabel="Kế hoạch (t)"
+                  yLabel="Qoil (kt)"
+                  tooltipLabel="Thực tế (kt)"
+                  compareLabel="Kế hoạch (kt)"
+                  barLabelFormatter={fmtKt}
                   cellColorFn={(entry, i, isCompare) =>
                     entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getReservoirColor(entry.name, i)
                   }
@@ -371,24 +383,24 @@ function ProductionPage() {
           const selectedData = blockBreakdown.find((b) => b.block === selectedBlock);
           const blockBarData = selectedData
             ? [...selectedData.fields.map((f) => ({
-                name: f.name, oil: f.oil,
-                council_plan_final: f.council_plan_final || 0,
+                name: f.name, oil: toKt(f.oil),
+                council_plan_final: toKt(f.council_plan_final || 0),
                 type: "field",
               })),
                {
-                name: `${selectedData.block} (Total)`, oil: selectedData.total,
-                council_plan_final: selectedData.council_plan_final || 0,
+                name: `${selectedData.block} (Total)`, oil: toKt(selectedData.total),
+                council_plan_final: toKt(selectedData.council_plan_final || 0),
                 type: "total",
                }]
             : [];
           const blockPieData = selectedData
             ? selectedData.fields.map((f, i) => ({
                 name: f.name,
-                value: f.oil,
+                value: toKt(f.oil),
                 fill: getFieldColor(f.name, i),
               }))
             : [];
-          const blockTotalOil = selectedData ? selectedData.total : 0;
+          const blockTotalOil = selectedData ? toKt(selectedData.total) : 0;
 
           return (
             <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
@@ -397,9 +409,10 @@ function ProductionPage() {
                   title={`Qoil by Field in Block — ${selectedYear}`}
                   data={blockBarData}
                   compareKey="council_plan_final"
-                  yLabel="Qoil (t)"
-                  tooltipLabel="Thực tế (t)"
-                  compareLabel="Kế hoạch (t)"
+                  yLabel="Qoil (kt)"
+                  tooltipLabel="Thực tế (kt)"
+                  compareLabel="Kế hoạch (kt)"
+                  barLabelFormatter={fmtKt}
                   cellColorFn={(entry, i, isCompare) =>
                     entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getFieldColor(entry.name, i)
                   }
