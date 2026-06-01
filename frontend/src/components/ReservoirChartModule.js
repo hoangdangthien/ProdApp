@@ -8,6 +8,9 @@ import "./ScatterPlotModule.css";
 import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
 import EditableLabel from "./EditableLabel";
 import EditableValueLabel from "./EditableValueLabel";
+import useResizable, { ResizeHandles } from "./useResizable";
+
+const FONT = "Arial, sans-serif";
 
 const COLORS = {
   OilRate: "#2e7d32",
@@ -17,6 +20,7 @@ const COLORS = {
 };
 
 function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, onReservoirChange, data, loading }) {
+  const { size, style, containerRef, onResize } = useResizable(380);
   const [filteredReservoirs, setFilteredReservoirs] = useState([]);
   const [legendLabels, setLegendLabels] = useState({
     OilRate: "Sản lượng dầu",
@@ -25,6 +29,9 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
     VRR: "Hệ số bù khai thác",
   });
   const [showDataLabels, setShowDataLabels] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [axisTitleSize, setAxisTitleSize] = useState(11);
+  const [axisLabelSize, setAxisLabelSize] = useState(11);
   const [valueOverrides, setValueOverrides] = useState({});
   const handleValueOverride = useCallback((seriesKey) => (index, val) => {
     setValueOverrides((prev) => ({ ...prev, [seriesKey]: { ...(prev[seriesKey] || {}), [index]: val } }));
@@ -36,8 +43,7 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
   }, []);
 
   const handleDownload = useCallback(() => {
-    const svg = chartRef.current?.querySelector("svg");
-    downloadChartAsPng(svg, "Reservoir_Production_VRR.png");
+    downloadChartAsPng(chartRef.current, "Reservoir_Production_VRR.png");
   }, []);
 
   useEffect(() => {
@@ -48,20 +54,18 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
   }, [resField]);
 
   return (
-    <div className="spm" style={{ marginBottom: 24 }}>
+    <div className="spm" ref={containerRef} style={{ ...style, marginBottom: 24 }}>
       <div className="spm-header">
         <span className="spm-header-title">
-          <span className="spm-header-icon">⠿</span> Reservoir Production &amp; VRR
+          Reservoir Production &amp; VRR
         </span>
         {data.length > 0 && resField && resReservoir && <DownloadPngButton onClick={handleDownload} />}
       </div>
       <div
-        className={`spm-edit-tab ${showDataLabels ? "active" : ""}`}
-        onClick={() => setShowDataLabels((v) => !v)}
-        title="Toggle data labels"
-        style={{ cursor: "pointer" }}
+        className={`spm-edit-tab ${inspectorOpen ? "active" : ""}`}
+        onClick={() => setInspectorOpen((o) => !o)}
       >
-        {showDataLabels ? "Labels: ON" : "Labels: OFF"}
+        Edit
       </div>
       <div style={{ display: "flex", gap: 12, padding: "8px 16px", alignItems: "center", flexWrap: "wrap" }}>
         <label style={{ fontWeight: 600, fontSize: 13 }}>Field:</label>
@@ -75,52 +79,52 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
           {filteredReservoirs.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
-      <div className="spm-plot" ref={chartRef}>
+      <div className="spm-plot spm-plot-fill" ref={chartRef}>
         {loading ? (
-          <div className="spm-empty" style={{ height: 380 }}>Loading...</div>
+          <div className="spm-empty" style={{ height: size.height }}>Loading...</div>
         ) : !resField || !resReservoir ? (
-          <div className="spm-empty" style={{ height: 380 }}>Select a Field and Reservoir to view chart</div>
+          <div className="spm-empty" style={{ height: size.height }}>Select a Field and Reservoir to view chart</div>
         ) : data.length === 0 ? (
-          <div className="spm-empty" style={{ height: 380 }}>No data</div>
+          <div className="spm-empty" style={{ height: size.height }}>No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={380}>
-            <ComposedChart data={data} margin={{ top: 16, right: 80, bottom: 24, left: 8 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-              <XAxis dataKey="Date" tick={{ fontSize: 11 }} minTickGap={24} />
+              <XAxis dataKey="Date" tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }} minTickGap={24} />
 
               <YAxis
                 yAxisId="qoil"
                 orientation="left"
-                tick={{ fontSize: 11 }}
-                label={{ value: "OilRate (t)", angle: -90, position: "insideLeft", style: { fontSize: 11, textAnchor: "middle" } }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }}
+                label={{ value: "OilRate (t)", angle: -90, position: "insideLeft", style: { fontSize: axisTitleSize, fontFamily: FONT, fill: "#000", textAnchor: "middle" } }}
               />
               <YAxis
                 yAxisId="gor"
                 orientation="right"
-                tick={{ fontSize: 11, fill: COLORS.GOR }}
+                width={60}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.GOR }}
                 axisLine={{ stroke: COLORS.GOR }}
                 tickLine={{ stroke: COLORS.GOR }}
-                label={{ value: "GOR (m³/t)", angle: 90, position: "insideRight", style: { fontSize: 11, textAnchor: "middle", fill: COLORS.GOR } }}
+                label={{ value: "GOR (m³/t)", angle: 90, position: "insideRight", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: COLORS.GOR } }}
               />
               <YAxis
                 yAxisId="wc"
                 orientation="right"
                 domain={[0, 100]}
-                tick={{ fontSize: 11, fill: COLORS.WC }}
-                axisLine={{ stroke: COLORS.WC }}
-                tickLine={{ stroke: COLORS.WC }}
-                width={50}
-                label={{ value: "WC (%)", angle: 90, position: "insideRight", style: { fontSize: 11, textAnchor: "middle", fill: COLORS.WC } }}
+                tick={false}
+                axisLine={false}
+                tickLine={false}
+                width={1}
                 hide
               />
               <YAxis
                 yAxisId="vrr"
                 orientation="right"
-                tick={{ fontSize: 11, fill: COLORS.VRR }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: COLORS.VRR }}
                 axisLine={{ stroke: COLORS.VRR }}
                 tickLine={{ stroke: COLORS.VRR }}
                 width={50}
-                label={{ value: "VRR", angle: 90, position: "insideRight", style: { fontSize: 11, textAnchor: "middle", fill: COLORS.VRR } }}
+                label={{ value: "VRR", angle: 90, position: "insideRight", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: COLORS.VRR } }}
               />
 
               <Tooltip formatter={(value, name) => [typeof value === "number" ? value.toFixed(2) : value, name]} />
@@ -166,6 +170,54 @@ function ReservoirChartModule({ fields, resField, resReservoir, onFieldChange, o
           </ResponsiveContainer>
         )}
       </div>
+
+      {inspectorOpen && (
+        <div className="spm-inspector">
+          <div className="spm-insp-header">
+            <span>Property Inspector</span>
+            <button className="spm-insp-close" onClick={() => setInspectorOpen(false)}>×</button>
+          </div>
+          <div className="spm-insp-body">
+            <div className="spm-insp-section-title">Axis Title</div>
+            <div className="spm-insp-row">
+              <label>Title size</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                min={6}
+                max={40}
+                value={axisTitleSize}
+                onChange={(e) => setAxisTitleSize(Number(e.target.value) || 11)}
+              />
+            </div>
+            <div className="spm-insp-row">
+              <label>Label size</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                min={6}
+                max={40}
+                value={axisLabelSize}
+                onChange={(e) => setAxisLabelSize(Number(e.target.value) || 11)}
+              />
+            </div>
+
+            <div className="spm-insp-section-title">Data Labels</div>
+            <div className="spm-insp-row">
+              <label>Show labels</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setShowDataLabels(true)}>
+                  <span className={`spm-radio ${showDataLabels ? "on" : ""}`} />Show
+                </span>
+                <span className="spm-seg-opt" onClick={() => setShowDataLabels(false)}>
+                  <span className={`spm-radio ${!showDataLabels ? "on" : ""}`} />Hide
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <ResizeHandles onResize={onResize} />
     </div>
   );
 }

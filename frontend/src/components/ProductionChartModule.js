@@ -7,6 +7,7 @@ import "./ScatterPlotModule.css";
 import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
 import EditableLabel from "./EditableLabel";
 import EditableValueLabel from "./EditableValueLabel";
+import useResizable, { ResizeHandles } from "./useResizable";
 
 /*
  * ProductionChartModule
@@ -27,6 +28,8 @@ import EditableValueLabel from "./EditableValueLabel";
  *   height    number — chart height in px (default 420)
  */
 
+const FONT = "Arial, sans-serif";
+
 // Required colors: oil rate green, liquid rate blue, GOR yellow.
 const SERIES = {
   OilRate: { color: "#2e7d32", label: "Oil Rate (t/d)", axis: "rate", type: "line" },
@@ -44,6 +47,7 @@ const AXES = [
 const defaultAxis = (title) => ({ min: "", max: "", title });
 
 function ProductionChartModule({ title = "Production", data = [], storageKey, height = 420, showDataLabels: initialShowDataLabels = false }) {
+  const { size, style, containerRef, onResize } = useResizable(height);
   const [seriesLabels, setSeriesLabels] = useState({
     OilRate: SERIES.OilRate.label,
     LiqRate: SERIES.LiqRate.label,
@@ -83,12 +87,13 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorAxis, setInspectorAxis] = useState("rate");
   const [customMode, setCustomMode] = useState({});
+  const [axisTitleSize, setAxisTitleSize] = useState(11);
+  const [axisLabelSize, setAxisLabelSize] = useState(11);
   const chartRef = useRef(null);
 
   const handleDownload = useCallback(() => {
-    const svg = chartRef.current?.querySelector("svg");
     const safeName = (title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(svg, safeName);
+    downloadChartAsPng(chartRef.current, safeName);
   }, [title]);
 
   const update = useCallback((updater) => {
@@ -180,6 +185,28 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
               onChange={(e) => setAxis(axis, "title", e.target.value)}
             />
           </div>
+          <div className="spm-insp-row">
+            <label>Title size</label>
+            <input
+              type="number"
+              className="spm-insp-input"
+              min={6}
+              max={40}
+              value={axisTitleSize}
+              onChange={(e) => setAxisTitleSize(Number(e.target.value) || 11)}
+            />
+          </div>
+          <div className="spm-insp-row">
+            <label>Label size</label>
+            <input
+              type="number"
+              className="spm-insp-input"
+              min={6}
+              max={40}
+              value={axisLabelSize}
+              onChange={(e) => setAxisLabelSize(Number(e.target.value) || 11)}
+            />
+          </div>
 
           <div className="spm-insp-section-title">Data Labels</div>
           <div className="spm-insp-row">
@@ -199,10 +226,10 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
   };
 
   return (
-    <div className="spm">
+    <div className="spm" ref={containerRef} style={style}>
       <div className="spm-header">
         <span className="spm-header-title">
-          <span className="spm-header-icon">⠿</span> {title}
+          {title}
         </span>
         {data.length > 0 && <DownloadPngButton onClick={handleDownload} />}
       </div>
@@ -214,22 +241,22 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
         Edit
       </div>
 
-      <div className="spm-plot" ref={chartRef}>
+      <div className="spm-plot spm-plot-fill" ref={chartRef}>
         {data.length === 0 ? (
           <div className="spm-empty" style={{ height }}>No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={height}>
-            <ComposedChart data={data} margin={{ top: 16, right: 78, bottom: 24, left: 8 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-              <XAxis dataKey="Date" tick={{ fontSize: 11 }} minTickGap={24} />
+              <XAxis dataKey="Date" tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }} minTickGap={24} />
 
               <YAxis
                 yAxisId="rate"
                 orientation="left"
                 domain={domainFor("rate")}
                 allowDataOverflow={overflowFor("rate")}
-                tick={{ fontSize: 11 }}
-                label={{ value: settings.rate.title, angle: -90, position: "insideLeft", style: { fontSize: 11, textAnchor: "middle" } }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }}
+                label={{ value: settings.rate.title, angle: -90, position: "insideLeft", style: { fontSize: axisTitleSize, fontFamily: FONT, fill: "#000", textAnchor: "middle" } }}
               />
               <YAxis
                 yAxisId="wc"
@@ -238,21 +265,21 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
                 domain={[0.1, 100]}
                 allowDataOverflow
                 ticks={[0.1, 1, 10, 100]}
-                tick={{ fontSize: 11, fill: SERIES.WC.color }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: SERIES.WC.color }}
                 axisLine={{ stroke: SERIES.WC.color }}
                 tickLine={{ stroke: SERIES.WC.color }}
-                label={{ value: settings.wc.title, angle: 90, position: "insideRight", style: { fontSize: 11, textAnchor: "middle", fill: SERIES.WC.color } }}
+                label={{ value: settings.wc.title, angle: 90, position: "insideRight", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: SERIES.WC.color } }}
               />
               <YAxis
                 yAxisId="gor"
                 orientation="right"
                 domain={domainFor("gor")}
                 allowDataOverflow={overflowFor("gor")}
-                tick={{ fontSize: 11, fill: SERIES.GOR.color }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: SERIES.GOR.color }}
                 axisLine={{ stroke: SERIES.GOR.color }}
                 tickLine={{ stroke: SERIES.GOR.color }}
                 width={58}
-                label={{ value: settings.gor.title, angle: 90, position: "insideRight", style: { fontSize: 11, textAnchor: "middle", fill: SERIES.GOR.color } }}
+                label={{ value: settings.gor.title, angle: 90, position: "insideRight", style: { fontSize: axisTitleSize, fontFamily: FONT, textAnchor: "middle", fill: SERIES.GOR.color } }}
               />
 
               <Tooltip
@@ -305,6 +332,7 @@ function ProductionChartModule({ title = "Production", data = [], storageKey, he
       </div>
 
       {inspectorOpen && renderInspector()}
+      <ResizeHandles onResize={onResize} />
     </div>
   );
 }

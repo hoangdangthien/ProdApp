@@ -8,8 +8,10 @@
   flex-direction: column;
   border: 1px solid #c9c9c9;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Dark title bar, like the Spotfire visualization header */
@@ -30,9 +32,6 @@
   gap: 8px;
 }
 
-.spm-header-icon {
-  opacity: 0.85;
-}
 
 .spm-edit-tab {
   writing-mode: vertical-rl;
@@ -113,6 +112,15 @@
 .spm-plot {
   position: relative;
   padding: 4px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* Plot area that should fill the remaining card height (so the chart fits
+   below the header/filter chrome and the X axis is never clipped). */
+.spm-plot.spm-plot-fill {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .spm-loading {
@@ -273,3 +281,18 @@
   background: none;
   cursor: pointer;
 }
+
+/* Resize handles — edges */
+.spm-resize { position: absolute; z-index: 4; }
+.spm-resize:hover, .spm-resize:active { background: rgba(25, 118, 210, 0.25); }
+
+.spm-resize-n { top: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+.spm-resize-s { bottom: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+.spm-resize-e { right: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+.spm-resize-w { left: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+
+/* Resize handles — corners */
+.spm-resize-ne { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; z-index: 5; }
+.spm-resize-nw { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; z-index: 5; }
+.spm-resize-se { bottom: 0; right: 0; width: 10px; height: 10px; cursor: nwse-resize; z-index: 5; }
+.spm-resize-sw { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; z-index: 5; }

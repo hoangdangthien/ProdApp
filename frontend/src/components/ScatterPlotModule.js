@@ -7,6 +7,7 @@ import "./ScatterPlotModule.css";
 import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
 import EditableLabel from "./EditableLabel";
 import EditableValueLabel from "./EditableValueLabel";
+import useResizable, { ResizeHandles } from "./useResizable";
 
 /*
  * ScatterPlotModule
@@ -45,6 +46,8 @@ import EditableValueLabel from "./EditableValueLabel";
  *   categoryColorEntries array — [{ value, color }] for per-category swatches
  *   onCategoryColorChange fn — (value, hex)
  */
+
+const FONT = "Arial, sans-serif";
 
 const PALETTE = [
   "#c0392b", "#1976d2", "#4caf50", "#ff9800", "#9c27b0", "#00bcd4",
@@ -92,8 +95,9 @@ function ScatterPlotModule({
   categoryColorEntries,
   onCategoryColorChange,
 }) {
+  const { style, containerRef, onResize } = useResizable(height);
   const [settings, setSettings] = useState(() => {
-    const base = { x: defaultAxis(xTitle), y: defaultAxis(yTitle), showLabels: true };
+    const base = { x: defaultAxis(xTitle), y: defaultAxis(yTitle), showLabels: true, titleSize: 12, labelSize: 11 };
     if (!storageKey) return base;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -126,9 +130,8 @@ function ScatterPlotModule({
   const chartRef = useRef(null);
 
   const handleDownload = useCallback(() => {
-    const svg = chartRef.current?.querySelector("svg");
     const safeName = (title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(svg, safeName);
+    downloadChartAsPng(chartRef.current, safeName);
   }, [title]);
 
   const update = useCallback((updater) => {
@@ -206,7 +209,7 @@ function ScatterPlotModule({
       type: "number",
       dataKey,
       reversed: !!s.reverse,
-      tick: { fontSize: 11, fill: "#000" },
+      tick: { fontSize: settings.labelSize, fontFamily: FONT, fill: "#000" },
       tickFormatter: numFmt(axis),
     };
     if (s.scaleType === "log") props.scale = "log";
@@ -342,6 +345,28 @@ function ScatterPlotModule({
               value={settings[axis].title}
               placeholder="Axis title"
               onChange={(e) => setAxis(axis, "title", e.target.value)}
+            />
+          </div>
+          <div className="spm-insp-row">
+            <label>Title size</label>
+            <input
+              type="number"
+              className="spm-insp-input"
+              min={6}
+              max={40}
+              value={settings.titleSize}
+              onChange={(e) => update({ titleSize: Number(e.target.value) || 12 })}
+            />
+          </div>
+          <div className="spm-insp-row">
+            <label>Label size</label>
+            <input
+              type="number"
+              className="spm-insp-input"
+              min={6}
+              max={40}
+              value={settings.labelSize}
+              onChange={(e) => update({ labelSize: Number(e.target.value) || 11 })}
             />
           </div>
 
@@ -497,10 +522,10 @@ function ScatterPlotModule({
   };
 
   return (
-    <div className="spm">
+    <div className="spm" ref={containerRef} style={style}>
       <div className="spm-header">
         <span className="spm-header-title">
-          <span className="spm-header-icon">⠿</span> {title}
+          {title}
         </span>
         {data.length > 0 && <DownloadPngButton onClick={handleDownload} />}
       </div>
@@ -514,12 +539,12 @@ function ScatterPlotModule({
 
       {renderToolbar()}
 
-      <div className="spm-plot" ref={chartRef}>
+      <div className="spm-plot spm-plot-fill" ref={chartRef}>
         {loading && <div className="spm-loading">Loading…</div>}
         {data.length === 0 ? (
-          <div className="spm-empty" style={{ height }}>No data</div>
+          <div className="spm-empty" style={{ height: "100%" }}>No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={height}>
+          <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 20 }}>
               {(settings.x.grid || settings.y.grid) && (
                 <CartesianGrid
@@ -532,12 +557,12 @@ function ScatterPlotModule({
               <XAxis
                 {...axisProps("x", "x")}
                 name={settings.x.title}
-                label={{ value: settings.x.title, position: "insideBottom", offset: -15, style: { fontSize: 12, fill: "#000" } }}
+                label={{ value: settings.x.title, position: "insideBottom", offset: -15, style: { fontSize: settings.titleSize, fontFamily: FONT, fill: "#000" } }}
               />
               <YAxis
                 {...axisProps("y", "y")}
                 name={settings.y.title}
-                label={{ value: settings.y.title, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 12, textAnchor: "middle", fill: "#000" } }}
+                label={{ value: settings.y.title, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: settings.titleSize, fontFamily: FONT, textAnchor: "middle", fill: "#000" } }}
               />
               <ZAxis range={[70, 70]} />
               {referenceLines.map((rl, i) =>
@@ -580,6 +605,7 @@ function ScatterPlotModule({
       )}
 
       {inspectorOpen && renderInspector()}
+      <ResizeHandles onResize={onResize} />
     </div>
   );
 }

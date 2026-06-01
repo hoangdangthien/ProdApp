@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  PieChart, Pie, Legend, Tooltip,
+  PieChart, Pie, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 import { getCascadingFilters, getProductionMulti, getYearlySummary, getReservoirSummary, getFieldReservoirBreakdown, getBlockFieldBreakdown } from "../api";
 import ProductionChartModule from "../components/ProductionChartModule";
 import ReservoirChartModule from "../components/ReservoirChartModule";
-import ProductionBarChart, { getChartWidth, downloadChartAsPng } from "../components/ProductionBarChart";
+import ProductionBarChart, { downloadChartAsPng } from "../components/ProductionBarChart";
+import useResizable, { ResizeHandles } from "../components/useResizable";
 
 // ── Field color dictionary (line 11) ──
 const FIELD_COLOR_MAP = {
@@ -36,19 +37,19 @@ function getReservoirColor(name, index) {
   return RESERVOIR_COLOR_MAP[name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
-function PieChartCard({ title, pieData, totalValue, tooltipLabel }) {
+function PieChartCard({ title, pieData, totalValue, tooltipLabel, excludeDirections = [] }) {
   const plotRef = useRef(null);
+  const { size, style, containerRef, onResize } = useResizable(300, 200, 150);
   const handleDownload = useCallback(() => {
-    const svg = plotRef.current?.querySelector("svg");
     const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(svg, safeName);
+    downloadChartAsPng(plotRef.current, safeName);
   }, [title]);
 
   return (
-    <div className="spm" style={{ width: 500 }}>
+    <div className="spm" ref={containerRef} style={style}>
       <div className="spm-header">
         <span className="spm-header-title">
-          <span className="spm-header-icon">⠿</span> {title}
+          {title}
         </span>
         {pieData.length > 0 && (
           <button
@@ -66,9 +67,9 @@ function PieChartCard({ title, pieData, totalValue, tooltipLabel }) {
       </div>
       <div className="spm-plot" ref={plotRef}>
         {pieData.length === 0 ? (
-          <div className="spm-empty" style={{ height: 300 }}>No data</div>
+          <div className="spm-empty" style={{ height: size.height }}>No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={size.height}>
             <PieChart>
               <Pie
                 data={pieData}
@@ -76,7 +77,7 @@ function PieChartCard({ title, pieData, totalValue, tooltipLabel }) {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                outerRadius={110}
+                outerRadius={Math.min(size.height * 0.35, 110)}
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                 labelLine={{ strokeWidth: 1 }}
                 fontSize={12}
@@ -90,6 +91,7 @@ function PieChartCard({ title, pieData, totalValue, tooltipLabel }) {
           </ResponsiveContainer>
         )}
       </div>
+      <ResizeHandles onResize={onResize} excludeDirections={excludeDirections} />
     </div>
   );
 }
@@ -280,22 +282,21 @@ function ProductionPage() {
           </select>
         </div>
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
-          {/* Oil Production by Field */}
-          <div style={{ width: getChartWidth(summaryByField.length) }}>
+        <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+          <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
             <ProductionBarChart
               title={`Oil Production by Field — ${selectedYear}`}
               data={summaryByField}
               cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
+              excludeDirections={["w", "nw", "sw"]}
             />
           </div>
-
-          {/* Oil Production by Platform */}
-          <div style={{ width: getChartWidth(summaryByPlatform.length) }}>
+          <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
             <ProductionBarChart
               title={`Oil Production by Platform — ${selectedYear}`}
               data={summaryByPlatform}
               cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
+              excludeDirections={["e", "ne", "se"]}
             />
           </div>
         </div>
@@ -325,8 +326,8 @@ function ProductionPage() {
           const totalOil = selectedData ? selectedData.total : 0;
 
           return (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
-              <div style={{ width: getChartWidth(barData.length, true) }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
+              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
                 <ProductionBarChart
                   title={`Qoil by Reservoir in Field — ${selectedYear}`}
                   data={barData}
@@ -337,6 +338,7 @@ function ProductionPage() {
                   cellColorFn={(entry, i, isCompare) =>
                     entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getReservoirColor(entry.name, i)
                   }
+                  excludeDirections={["w", "nw", "sw"]}
                   headerRight={
                     <select
                       value={selectedBreakdownField}
@@ -351,12 +353,15 @@ function ProductionPage() {
                 />
               </div>
 
-              <PieChartCard
-                title={`Reservoir Share — ${selectedBreakdownField} (${selectedYear})`}
-                pieData={pieData}
-                totalValue={totalOil}
-                tooltipLabel="Qoil"
-              />
+              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
+                <PieChartCard
+                  title={`Reservoir Share — ${selectedBreakdownField} (${selectedYear})`}
+                  pieData={pieData}
+                  totalValue={totalOil}
+                  tooltipLabel="Qoil"
+                  excludeDirections={["e", "ne", "se"]}
+                />
+              </div>
             </div>
           );
         })()}
@@ -386,8 +391,8 @@ function ProductionPage() {
           const blockTotalOil = selectedData ? selectedData.total : 0;
 
           return (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, justifyContent: "center" }}>
-              <div style={{ width: getChartWidth(blockBarData.length, true) }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: 24, alignItems: "flex-start" }}>
+              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible", position: "relative", zIndex: 1 }}>
                 <ProductionBarChart
                   title={`Qoil by Field in Block — ${selectedYear}`}
                   data={blockBarData}
@@ -398,6 +403,7 @@ function ProductionPage() {
                   cellColorFn={(entry, i, isCompare) =>
                     entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getFieldColor(entry.name, i)
                   }
+                  excludeDirections={["w", "nw", "sw"]}
                   headerRight={
                     <select
                       value={selectedBlock}
@@ -412,41 +418,48 @@ function ProductionPage() {
                 />
               </div>
 
-              <PieChartCard
-                title={`Field Share — ${selectedBlock} (${selectedYear})`}
-                pieData={blockPieData}
-                totalValue={blockTotalOil}
-                tooltipLabel="Qoil"
-              />
+              <div className="chart-card" style={{ flex: 1, minWidth: 0, overflow: "visible" }}>
+                <PieChartCard
+                  title={`Field Share — ${selectedBlock} (${selectedYear})`}
+                  pieData={blockPieData}
+                  totalValue={blockTotalOil}
+                  tooltipLabel="Qoil"
+                  excludeDirections={["e", "ne", "se"]}
+                />
+              </div>
             </div>
           );
         })()}
 
         {/* Reservoir-level chart with VRR */}
-        <ReservoirChartModule
-          fields={filters.fields}
-          reservoirs={filters.reservoirs}
-          resField={resField}
-          resReservoir={resReservoir}
-          onFieldChange={(v) => { setResField(v); setResReservoir(""); }}
-          onReservoirChange={setResReservoir}
-          data={reservoirData}
-          loading={reservoirLoading}
-          allFilters={filters}
-        />
+        <div className="chart-card" style={{ marginBottom: 24 }}>
+          <ReservoirChartModule
+            fields={filters.fields}
+            reservoirs={filters.reservoirs}
+            resField={resField}
+            resReservoir={resReservoir}
+            onFieldChange={(v) => { setResField(v); setResReservoir(""); }}
+            onReservoirChange={setResReservoir}
+            data={reservoirData}
+            loading={reservoirLoading}
+            allFilters={filters}
+          />
+        </div>
 
         {/* Aggregated well production chart */}
-        {loading ? (
-          <div className="loading">Loading production data...</div>
-        ) : selectedIds.length === 0 ? (
-          <div className="loading">Select wells from the sidebar to view production chart</div>
-        ) : (
-          <ProductionChartModule
-            title={chartTitle}
-            data={aggregatedData}
-            storageKey="prod_chart_aggregate"
-          />
-        )}
+        <div className="chart-card">
+          {loading ? (
+            <div className="loading">Loading production data...</div>
+          ) : selectedIds.length === 0 ? (
+            <div className="loading">Select wells from the sidebar to view production chart</div>
+          ) : (
+            <ProductionChartModule
+              title={chartTitle}
+              data={aggregatedData}
+              storageKey="prod_chart_aggregate"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

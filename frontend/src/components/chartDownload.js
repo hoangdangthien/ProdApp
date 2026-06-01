@@ -1,34 +1,40 @@
 import React, { useRef, useCallback } from "react";
+import { toPng } from "html-to-image";
 
-export function downloadChartAsPng(svgElement, filename) {
-  if (!svgElement) return;
-  const svgData = new XMLSerializer().serializeToString(svgElement);
-  const canvas = document.createElement("canvas");
-  const scale = 2;
-  canvas.width = svgElement.width.baseVal.value * scale;
-  canvas.height = svgElement.height.baseVal.value * scale;
-  const ctx = canvas.getContext("2d");
-  ctx.scale(scale, scale);
-  const img = new Image();
-  img.onload = () => {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    const link = document.createElement("a");
-    link.download = filename;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-  img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+export function downloadChartAsPng(containerElement, filename) {
+  if (!containerElement) return;
+  const svg = containerElement.querySelector
+    ? containerElement.tagName === "svg"
+      ? containerElement.parentElement
+      : containerElement
+    : containerElement;
+
+  const target = svg.querySelector(".recharts-wrapper") || svg;
+
+  toPng(target, {
+    pixelRatio: 4,
+    backgroundColor: "#ffffff",
+    filter: (node) => {
+      if (node?.tagName === "BUTTON") return false;
+      if (node?.classList?.contains?.("spm-insp-close")) return false;
+      return true;
+    },
+  })
+    .then((dataUrl) => {
+      const link = document.createElement("a");
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+    })
+    .catch((err) => console.error("Chart export failed:", err));
 }
 
 export function useChartDownload(title) {
   const chartRef = useRef(null);
 
   const handleDownload = useCallback(() => {
-    const svg = chartRef.current?.querySelector("svg");
     const safeName = (title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(svg, safeName);
+    downloadChartAsPng(chartRef.current, safeName);
   }, [title]);
 
   return { chartRef, handleDownload };

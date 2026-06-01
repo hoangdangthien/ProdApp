@@ -5,13 +5,28 @@ import {
 } from "recharts";
 import { downloadChartAsPng, DownloadPngButton } from "./chartDownload";
 import EditableLabel from "./EditableLabel";
-import EditableValueLabel from "./EditableValueLabel";
+import useResizable, { ResizeHandles } from "./useResizable";
+
+function ValueLabel({ x, y, width, value, offset = 6, formatter, fontSize = 11, fontWeight = 600, fill = "#333" }) {
+  if (value == null) return null;
+  const formatted = formatter ? formatter(value) : (typeof value === "number" ? Math.round(value).toLocaleString() : value);
+  const isNegative = typeof value === "number" && value < 0;
+  const cx = x + (width ? width / 2 : 0);
+  const cy = isNegative ? y + offset + fontSize : y - offset;
+  return (
+    <text x={cx} y={cy} textAnchor="middle" fontSize={fontSize} fontWeight={fontWeight} fill={fill}>
+      {formatted}
+    </text>
+  );
+}
 
 const DEFAULT_COLORS = [
   "#2e7d32", "#1976d2", "#e65100", "#6a1b9a", "#00838f",
   "#c62828", "#ef6c00", "#283593", "#00695c", "#ad1457",
   "#f57c00", "#0288d1", "#388e3c", "#7b1fa2", "#00acc1",
 ];
+
+const FONT = "Arial, sans-serif";
 
 const BAR_WIDTH = 28;
 const BAR_GAP = 100;
@@ -26,7 +41,7 @@ function getChartWidth(barCount, grouped = false) {
 
 
 
-function EditableXTick({ x, y, payload, nameOverrides, onNameChange }) {
+function EditableXTick({ x, y, payload, nameOverrides, onNameChange, labelSize = 11 }) {
   const original = payload.value;
   const display = nameOverrides[original] ?? original;
   const [editing, setEditing] = useState(false);
@@ -41,7 +56,7 @@ function EditableXTick({ x, y, payload, nameOverrides, onNameChange }) {
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => { setEditing(false); onNameChange(original, draft); }}
           onKeyDown={(e) => { if (e.key === "Enter") { setEditing(false); onNameChange(original, draft); } }}
-          style={{ fontSize: 10, width: 114, border: "1px solid #999", borderRadius: 2, padding: "0 3px", textAlign: "center" }}
+          style={{ fontSize: labelSize, fontFamily: FONT, width: 114, border: "1px solid #999", borderRadius: 2, padding: "0 3px", textAlign: "center" }}
         />
       </foreignObject>
     );
@@ -52,9 +67,10 @@ function EditableXTick({ x, y, payload, nameOverrides, onNameChange }) {
       <text
         x={0} y={0} dy={12}
         textAnchor="end"
-        fontSize={11}
+        fontSize={labelSize}
+        fontFamily={FONT}
         transform="rotate(-35)"
-        fill="#666"
+        fill="#000"
         style={{ cursor: "pointer" }}
         onClick={() => { setDraft(display); setEditing(true); }}
       >
@@ -105,8 +121,10 @@ function ProductionBarChart({
   yDomain,
   barRadius = [4, 4, 0, 0],
   tooltipFormatter,
+  excludeDirections = [],
 }) {
   const chartRef = useRef(null);
+  const { size, style, containerRef, onResize } = useResizable(height);
   const grouped = !!compareKey;
   const chartWidth = getChartWidth(data.length, grouped);
   const [legendLabels, setLegendLabels] = useState([tooltipLabel, compareLabel]);
@@ -128,28 +146,20 @@ function ProductionBarChart({
 
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [editableYLabel, setEditableYLabel] = useState(yLabel);
+  const [axisTitleSize, setAxisTitleSize] = useState(11);
+  const [axisLabelSize, setAxisLabelSize] = useState(11);
   const [labelsVisible, setLabelsVisible] = useState(showBarLabels);
-  const [valueOverrides, setValueOverrides] = useState({});
-  const [compareOverrides, setCompareOverrides] = useState({});
-  const handleValueOverride = useCallback((dataKeyName) => (index, val) => {
-    if (dataKeyName === "compare") {
-      setCompareOverrides((prev) => ({ ...prev, [index]: val }));
-    } else {
-      setValueOverrides((prev) => ({ ...prev, [index]: val }));
-    }
-  }, []);
 
   const handleDownload = useCallback(() => {
-    const svg = chartRef.current?.querySelector("svg");
     const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(svg, safeName);
+    downloadChartAsPng(chartRef.current, safeName);
   }, [title]);
 
   return (
-    <div className="spm">
+    <div className="spm" ref={containerRef} style={style}>
       <div className="spm-header">
         <span className="spm-header-title">
-          <span className="spm-header-icon">⠿</span> {title}
+          {title}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {headerRight}
@@ -166,12 +176,12 @@ function ProductionBarChart({
 
       <div className="spm-plot" ref={chartRef}>
         {data.length === 0 ? (
-          <div className="spm-empty" style={{ height }}>No data</div>
+          <div className="spm-empty" style={{ height: size.height }}>No data</div>
         ) : (
-          <div style={{ width: "100%", overflowX: "auto" }}>
+          <div style={{ width: "100%", overflowX: "auto", display: "flex", justifyContent: "center" }}>
             <BarChart
               width={chartWidth}
-              height={height}
+              height={size.height}
               data={data}
               margin={MARGIN}
             >
@@ -184,18 +194,19 @@ function ProductionBarChart({
                     {...props}
                     nameOverrides={nameOverrides}
                     onNameChange={handleNameChange}
+                    labelSize={axisLabelSize}
                   />
                 )}
               />
               <YAxis
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }}
                 domain={effYDomain}
                 allowDataOverflow={yMin !== "" || yMax !== ""}
                 label={{
                   value: editableYLabel,
                   angle: -90,
                   position: "insideLeft",
-                  style: { fontSize: 11, textAnchor: "middle" },
+                  style: { fontSize: axisTitleSize, fontFamily: FONT, fill: "#000", textAnchor: "middle" },
                 }}
               />
               <Tooltip
@@ -251,13 +262,11 @@ function ProductionBarChart({
                     dataKey={dataKey}
                     position="top"
                     content={(props) => (
-                      <EditableValueLabel
+                      <ValueLabel
                         {...props}
                         formatter={barLabelFormatter}
                         fontSize={(barLabelStyle && barLabelStyle.fontSize) || 11}
                         fontWeight={(barLabelStyle && barLabelStyle.fontWeight) || 600}
-                        overrides={valueOverrides}
-                        onOverride={handleValueOverride("primary")}
                       />
                     )}
                   />
@@ -276,14 +285,12 @@ function ProductionBarChart({
                       dataKey={compareKey}
                       position="top"
                       content={(props) => (
-                        <EditableValueLabel
+                        <ValueLabel
                           {...props}
                           formatter={barLabelFormatter}
                           fill="#212121"
                           fontSize={(barLabelStyle && barLabelStyle.fontSize) || 11}
                           fontWeight={(barLabelStyle && barLabelStyle.fontWeight) || 600}
-                          overrides={compareOverrides}
-                          onOverride={handleValueOverride("compare")}
                         />
                       )}
                     />
@@ -333,6 +340,28 @@ function ProductionBarChart({
                 onChange={(e) => setEditableYLabel(e.target.value)}
               />
             </div>
+            <div className="spm-insp-row">
+              <label>Title size</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                min={6}
+                max={40}
+                value={axisTitleSize}
+                onChange={(e) => setAxisTitleSize(Number(e.target.value) || 11)}
+              />
+            </div>
+            <div className="spm-insp-row">
+              <label>Label size</label>
+              <input
+                type="number"
+                className="spm-insp-input"
+                min={6}
+                max={40}
+                value={axisLabelSize}
+                onChange={(e) => setAxisLabelSize(Number(e.target.value) || 11)}
+              />
+            </div>
 
             <div className="spm-insp-section-title">Data Labels</div>
             <div className="spm-insp-row">
@@ -349,6 +378,7 @@ function ProductionBarChart({
           </div>
         </div>
       )}
+      <ResizeHandles onResize={onResize} excludeDirections={excludeDirections} />
     </div>
   );
 }
