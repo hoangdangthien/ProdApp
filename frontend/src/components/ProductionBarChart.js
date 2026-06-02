@@ -122,9 +122,12 @@ function ProductionBarChart({
   barRadius = [4, 4, 0, 0],
   tooltipFormatter,
   excludeDirections = [],
+  onHorizontalResize,
 }) {
   const chartRef = useRef(null);
-  const { size, style, containerRef, containerWidth, onResize } = useResizable(height);
+  const { size, style, containerRef, containerWidth, onResize } = useResizable(
+    height, 200, 150, { onHorizontalResize },
+  );
   const grouped = !!compareKey;
   const minChartWidth = getChartWidth(data.length, grouped);
   const chartWidth = containerWidth ? Math.max(minChartWidth, containerWidth - 8) : minChartWidth;
@@ -151,6 +154,8 @@ function ProductionBarChart({
   const [axisLabelSize, setAxisLabelSize] = useState(11);
   const [labelsVisible, setLabelsVisible] = useState(showBarLabels);
   const [showLegend, setShowLegend] = useState(true);
+  const [reverseX, setReverseX] = useState(false);
+  const [reverseY, setReverseY] = useState(false);
 
   const handleDownload = useCallback(() => {
     const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
@@ -211,6 +216,7 @@ function ProductionBarChart({
               <XAxis
                 dataKey={nameKey}
                 interval={0}
+                reversed={reverseX}
                 tick={(props) => (
                   <EditableXTick
                     {...props}
@@ -222,6 +228,7 @@ function ProductionBarChart({
               />
               <YAxis
                 tick={{ fontSize: axisLabelSize, fontFamily: FONT, fill: "#000" }}
+                reversed={reverseY}
                 domain={effYDomain}
                 allowDataOverflow={yMin !== "" || yMax !== ""}
                 label={{
@@ -357,6 +364,30 @@ function ProductionBarChart({
                 value={axisLabelSize}
                 onChange={(e) => setAxisLabelSize(Number(e.target.value) || 11)}
               />
+            </div>
+
+            <div className="spm-insp-section-title">Reverse Order</div>
+            <div className="spm-insp-row">
+              <label>X axis</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setReverseX(true)}>
+                  <span className={`spm-radio ${reverseX ? "on" : ""}`} />Yes
+                </span>
+                <span className="spm-seg-opt" onClick={() => setReverseX(false)}>
+                  <span className={`spm-radio ${!reverseX ? "on" : ""}`} />No
+                </span>
+              </div>
+            </div>
+            <div className="spm-insp-row">
+              <label>Y axis</label>
+              <div className="spm-seg">
+                <span className="spm-seg-opt" onClick={() => setReverseY(true)}>
+                  <span className={`spm-radio ${reverseY ? "on" : ""}`} />Yes
+                </span>
+                <span className="spm-seg-opt" onClick={() => setReverseY(false)}>
+                  <span className={`spm-radio ${!reverseY ? "on" : ""}`} />No
+                </span>
+              </div>
             </div>
 
             <div className="spm-insp-section-title">Data Labels</div>

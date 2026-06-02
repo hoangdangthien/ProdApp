@@ -4,6 +4,7 @@ import { saveAs } from "file-saver";
 import { getFilters, getABC, getElementNumbers, getProductionDates } from "../api";
 import ScatterPlotModule from "../components/ScatterPlotModule";
 import ProductionBarChart from "../components/ProductionBarChart";
+import { useHorizontalSplit } from "../components/useResizable";
 
 // Palette used to auto-assign colors when coloring points by a category
 const PALETTE = [
@@ -40,6 +41,9 @@ function ABCPage() {
   const [availableDates, setAvailableDates] = useState([]);
   const [refDate, setRefDate] = useState("");
   const [scatterPeriod, setScatterPeriod] = useState(3);
+  // Right-anchored split for the two ABC scatter plots: left plot is
+  // width-controlled, right plot stays flex:1 so its right edge is pinned.
+  const scatterSplit = useHorizontalSplit({initialFlex:1});
   const [annotations, setAnnotations] = useState(() => {
     try { return JSON.parse(localStorage.getItem("abc_annotations") || "{}"); } catch { return {}; }
   });
@@ -556,9 +560,13 @@ function ABCPage() {
       ) : (
         <>
           {/* Scatter Plots Row */}
-          <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 16, marginBottom: 20 }} ref={scatterSplit.rowRef}>
             {/* ABC Scatter Plot — custom Spotfire-style module */}
-            <div className="chart-card" style={{ flex: 1, minWidth: 0 }}>
+            <div
+              ref={scatterSplit.leftRef}
+              className="chart-card"
+              style={{ position: "relative", zIndex: 1, ...scatterSplit.leftStyle }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
                 <h3 style={{ margin: 0 }}>&Delta; Oil Rate vs &Delta; Liquid Rate (t/d)</h3>
                 <div className="period-tabs">
@@ -586,7 +594,7 @@ function ABCPage() {
                 onDateChange={setRefDate}
                 loading={loading}
                 storageKey="abc_scatter_module"
-                height={450}
+                height={600}
                 colorByOptions={CATEGORY_FIELDS}
                 colorBy={colorBy}
                 onColorByChange={handleColorByChange}
@@ -594,11 +602,13 @@ function ABCPage() {
                 onQuadrantColorChange={handleQuadrantColorChange}
                 categoryColorEntries={categoryColorEntries}
                 onCategoryColorChange={handleCategoryColorChange}
+                excludeDirections={["w", "nw", "sw"]}
+                onHorizontalResize={scatterSplit.onResize}
               />
             </div>
 
             {/* Decomposition Scatter Plot — ScatterPlotModule */}
-            <div className="chart-card" style={{ flex: 1, minWidth: 0 }}>
+            <div className="chart-card" style={{ flex: "1 1 0", minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
                 <h3 style={{ margin: 0 }}>Oil Rate Change Decomposition ({scatterPeriod}M)</h3>
               </div>
@@ -614,7 +624,7 @@ function ABCPage() {
                 onDateChange={setRefDate}
                 loading={loading}
                 storageKey="abc_decomp_module"
-                height={450}
+                height={600}
                 colorByOptions={CATEGORY_FIELDS}
                 colorBy={colorBy}
                 onColorByChange={handleColorByChange}
@@ -622,6 +632,8 @@ function ABCPage() {
                 onQuadrantColorChange={handleQuadrantColorChange}
                 categoryColorEntries={categoryColorEntries}
                 onCategoryColorChange={handleCategoryColorChange}
+                excludeDirections={["e", "ne", "se"]}
+                onHorizontalResize={scatterSplit.onResize}
               />
             </div>
           </div>
@@ -650,7 +662,7 @@ function ABCPage() {
                   referenceLineY={0}
                   showBarLabels
                   barLabelFormatter={(v) => v.toFixed(1)}
-                  yDomain={([dataMin, dataMax]) => [Math.floor(dataMin * 1.15) - 2, Math.ceil(dataMax * 1.15) + 2]}
+                  yDomain={([dataMin, dataMax]) => [Math.floor(dataMin * 1.5)-5, Math.ceil(dataMax * 1.2)]}
                   cellColorFn={(entry) => entry.deltaOil >= 0 ? "#4caf50" : "#f44336"}
                   tooltipFormatter={(v) => [`${v.toFixed(2)} t/d`, "ΔQ_oil"]}
                 />

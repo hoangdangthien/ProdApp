@@ -1,6 +1,7 @@
 import React, { useState, useCallback, createContext, useContext } from "react";
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation } from "react-router-dom";
 import ProductionPage from "./pages/ProductionPage";
+import DashboardPage from "./pages/DashboardPage";
 import ABCPage from "./pages/ABCPage";
 import "./App.css";
 
@@ -28,6 +29,9 @@ function AppInner() {
             <NavLink to="/" end className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
               Production
             </NavLink>
+            <NavLink to="/dashboard" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+              Dashboard
+            </NavLink>
             <NavLink to="/abc" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
               ABC Analysis
             </NavLink>
@@ -36,6 +40,7 @@ function AppInner() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<ProductionPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/abc" element={<ABCPage />} />
           </Routes>
         </main>

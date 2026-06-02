@@ -46,3 +46,18 @@ export const getFieldReservoirBreakdown = (year) =>
 
 export const getBlockFieldBreakdown = (year) =>
   API.get("/api/production/block-field-breakdown", { params: { year } });
+
+export const getDeclineOptions = (params) =>
+  API.get("/api/production/decline-options", { params });
+
+export const getDeclineComparison = (params) =>
+  API.get("/api/production/decline-comparison", { params });
+
+export const getDashboardOptions = (params) =>
+  API.get("/api/production/dashboard-options", { params });
+
+export const getHierarchyBreakdown = (params) =>
+  API.get("/api/production/hierarchy-breakdown", { params });
+
+export const getKpiSummary = (params) =>
+  API.get("/api/production/kpi-summary", { params });

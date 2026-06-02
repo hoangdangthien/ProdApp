@@ -94,8 +94,10 @@ function ScatterPlotModule({
   onQuadrantColorChange,
   categoryColorEntries,
   onCategoryColorChange,
+  excludeDirections = [],
+  onHorizontalResize,
 }) {
-  const { style, containerRef, onResize } = useResizable(height);
+  const { style, containerRef, onResize } = useResizable(height, 200, 150, { onHorizontalResize });
   const [settings, setSettings] = useState(() => {
     const base = { x: defaultAxis(xTitle), y: defaultAxis(yTitle), showLabels: true, titleSize: 12, labelSize: 11 };
     if (!storageKey) return base;
@@ -619,7 +621,7 @@ function ScatterPlotModule({
       )}
 
       {inspectorOpen && renderInspector()}
-      <ResizeHandles onResize={onResize} />
+      <ResizeHandles onResize={onResize} excludeDirections={excludeDirections} />
     </div>
   );
 }

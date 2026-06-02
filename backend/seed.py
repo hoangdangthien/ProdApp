@@ -146,6 +146,10 @@ def generate_inj(uid, start, end):
 PLAN_CASES = ["Base", "High", "Low"]
 PLAN_START = date(2025, 1, 1)
 PLAN_END = date(2030, 12, 1)
+# The council plan carries an extra December-2024 anchor so the decline charts
+# have a "previous December" baseline for the first plan year (2025).
+COUNCIL_START = date(2024, 12, 1)
+CASE_MULT = {"Base": 1.0, "High": 1.2, "Low": 0.8}
 
 
 def generate_plan_data(model_cls, uid, start, end):
@@ -177,6 +181,42 @@ def generate_plan_data(model_cls, uid, start, end):
                 Qliq=round(qliq, 3),
                 OilRate=round(oil_rate, 3),
                 LiqRate=round(liq_rate, 3),
+                Case=case,
+            ))
+    return rows
+
+
+def generate_wit_act(uid, prod_rates, start, end):
+    """Actual well-intervention increment, per scenario case.
+
+    Generated as a fraction of the well's *actual* MonthlyProd rate for the same
+    month, so WIT_Act.OilRate < MonthlyProd.OilRate (and likewise for liquid)
+    always hold — the increment is a portion of, never more than, real output.
+    """
+    rows = []
+    frac_oil = random.uniform(0.05, 0.30)   # Base increment as a share of actual
+    frac_liq = random.uniform(0.05, 0.30)
+    for case in PLAN_CASES:
+        mult = CASE_MULT[case]
+        # Cap the applied share below 1.0 so even the High case stays under actual.
+        share_oil = min(0.90, frac_oil * mult)
+        share_liq = min(0.90, frac_liq * mult)
+        for dt in month_range(start, end):
+            pr = prod_rates.get(dt)
+            if pr is None:
+                continue
+            oil_r, liq_r = pr
+            wit_oil = oil_r * share_oil
+            wit_liq = liq_r * share_liq
+            days = 28 + random.randint(0, 3)
+            rows.append(WIT_Act(
+                UniqueId=uid,
+                Date=dt,
+                Qoil=round(wit_oil * days, 3),
+                Qgas=0.0,
+                Qliq=round(wit_liq * days, 3),
+                OilRate=round(wit_oil, 3),
+                LiqRate=round(wit_liq, 3),
                 Case=case,
             ))
     return rows
@@ -263,10 +303,16 @@ def seed():
             ))
 
         print("Seeding production data...")
+        # Capture each well's actual monthly oil/liquid rate so WIT_Act can be
+        # derived as a strict fraction of it later.
+        prod_rate_map = {}
         for w in WELLS:
             well_start = START_DATE + timedelta(days=random.randint(0, 365))
             rows = generate_prod(w["UniqueId"], well_start, END_DATE)
             db.add_all(rows)
+            prod_rate_map[w["UniqueId"]] = {
+                r.Date: (r.OilRate, r.LiqRate) for r in rows
+            }
 
         print("Seeding injection data...")
         for uid in INJECTOR_IDS:
@@ -332,7 +378,7 @@ def seed():
 
         print("Seeding CurrentCouncilPlan...")
         for w in WELLS:
-            rows = generate_plan_data(CurrentCouncilPlan, w["UniqueId"], PLAN_START, PLAN_END)
+            rows = generate_plan_data(CurrentCouncilPlan, w["UniqueId"], COUNCIL_START, PLAN_END)
             db.add_all(rows)
 
         print("Seeding WIT_Plan...")
@@ -343,7 +389,7 @@ def seed():
         print("Seeding WIT_Act...")
         for w in WELLS:
             wit_act_end = min(END_DATE, date(2025, 12, 1))
-            rows = generate_plan_data(WIT_Act, w["UniqueId"], PLAN_START, wit_act_end)
+            rows = generate_wit_act(w["UniqueId"], prod_rate_map[w["UniqueId"]], PLAN_START, wit_act_end)
             db.add_all(rows)
 
         print("Seeding PPD_Plan...")

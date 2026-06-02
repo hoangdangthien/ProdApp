@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  PieChart, Pie, Tooltip,
-  ResponsiveContainer, Cell,
-} from "recharts";
+import React, { useState, useEffect, useCallback } from "react";
 import { getCascadingFilters, getProductionMulti, getYearlySummary, getReservoirSummary, getFieldReservoirBreakdown, getBlockFieldBreakdown } from "../api";
 import ProductionChartModule from "../components/ProductionChartModule";
 import ReservoirChartModule from "../components/ReservoirChartModule";
-import ProductionBarChart, { downloadChartAsPng } from "../components/ProductionBarChart";
-import useResizable, { ResizeHandles } from "../components/useResizable";
+import ProductionBarChart from "../components/ProductionBarChart";
+import PieChartCard from "../components/PieChartCard";
+import DeclineComparisonModule from "../components/DeclineComparisonModule";
+import { useHorizontalSplit } from "../components/useResizable";
 
 // ── Field color dictionary (line 11) ──
 const FIELD_COLOR_MAP = {
@@ -42,65 +40,6 @@ const toKt = (v) => Math.round((Number(v) || 0) / 1000 * 10) / 10;
 // Bar/label formatter that keeps a single decimal for kt values.
 const fmtKt = (v) => (typeof v === "number" ? v.toFixed(1) : v);
 
-function PieChartCard({ title, pieData, totalValue, tooltipLabel, excludeDirections = [] }) {
-  const plotRef = useRef(null);
-  const { size, style, containerRef, onResize } = useResizable(300, 200, 150);
-  const handleDownload = useCallback(() => {
-    const safeName = title.replace(/[^a-zA-Z0-9]/g, "_") + ".png";
-    downloadChartAsPng(plotRef.current, safeName);
-  }, [title]);
-
-  return (
-    <div className="spm" ref={containerRef} style={style}>
-      <div className="spm-header">
-        <span className="spm-header-title">
-          {title}
-        </span>
-        {pieData.length > 0 && (
-          <button
-            onClick={handleDownload}
-            title="Download as PNG"
-            style={{
-              background: "#1976d2", border: "none", borderRadius: 4,
-              padding: "4px 10px", cursor: "pointer", fontSize: 12, color: "#fff",
-              fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-            }}
-          >
-            PNG
-          </button>
-        )}
-      </div>
-      <div className="spm-plot" ref={plotRef}>
-        {pieData.length === 0 ? (
-          <div className="spm-empty" style={{ height: size.height }}>No data</div>
-        ) : (
-          <ResponsiveContainer width="100%" height={size.height}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={Math.min(size.height * 0.35, 110)}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
-                labelLine={{ strokeWidth: 1 }}
-                fontSize={12}
-              >
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v) => [`${v.toLocaleString()} kt (${totalValue > 0 ? ((v / totalValue) * 100).toFixed(1) : 0}%)`, tooltipLabel]} />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-      <ResizeHandles onResize={onResize} excludeDirections={excludeDirections} />
-    </div>
-  );
-}
-
 function ProductionPage() {
   const [filters, setFilters] = useState({ fields: [], reservoirs: [], platforms: [], unique_ids: [] });
   const [field, setField] = useState("");
@@ -120,6 +59,12 @@ function ProductionPage() {
 
   const [blockBreakdown, setBlockBreakdown] = useState([]);
   const [selectedBlock, setSelectedBlock] = useState("");
+
+  // ── Right-anchored splits: left chart is width-controlled, right chart
+  // stays flex:1 so its right edge is pinned and it squeezes. ──
+  const fieldSplit = useHorizontalSplit({ initialFlex: 1.6 }); // Platform (left) wider, Field (right) narrower
+  const reservoirSplit = useHorizontalSplit({ initialFlex: 1.6 }); // Qoil by Reservoir in Field row
+  const blockSplit = useHorizontalSplit({ initialFlex: 1.6 });   // Qoil by Field in Block row
 
   const [resField, setResField] = useState("");
   const [resReservoir, setResReservoir] = useState("");
@@ -287,30 +232,112 @@ function ProductionPage() {
           </select>
         </div>
 
-        <div className="charts-row">
-          <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
-            <ProductionBarChart
-              title={`Oil Production by Field — ${selectedYear}`}
-              data={summaryByField.map((d) => ({ ...d, oil: toKt(d.oil) }))}
-              yLabel="Oil Production (kt)"
-              tooltipLabel="Oil (kt)"
-              barLabelFormatter={fmtKt}
-              cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
-              excludeDirections={["w", "nw", "sw"]}
-            />
-          </div>
-          <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
+        <div className="charts-row" ref={fieldSplit.rowRef}>
+          <div
+            ref={fieldSplit.leftRef}
+            className="chart-card charts-row-item"
+            style={{ overflow: "visible", position: "relative", zIndex: 1, ...fieldSplit.leftStyle }}
+          >
             <ProductionBarChart
               title={`Oil Production by Platform — ${selectedYear}`}
               data={summaryByPlatform.map((d) => ({ ...d, oil: toKt(d.oil) }))}
-              yLabel="Oil Production (kt)"
-              tooltipLabel="Oil (kt)"
+              yLabel="Sản lượng dầu (ngàn tấn)"
+              tooltipLabel="Oil (ngàn tấn)"
+              barLabelFormatter={fmtKt}
+              cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
+              excludeDirections={["w", "nw", "sw"]}
+              onHorizontalResize={fieldSplit.onResize}
+            />
+          </div>
+          <div
+            className="chart-card charts-row-item"
+            style={{ overflow: "visible", flex: "1 1 0", minWidth: 0 }}
+          >
+            <ProductionBarChart
+              title={`Oil Production by Field — ${selectedYear}`}
+              data={summaryByField.map((d) => ({ ...d, oil: toKt(d.oil) }))}
+              yLabel="Sản lượng dầu (ngàn tấn)"
+              tooltipLabel="Oil (ngàn tấn)"
               barLabelFormatter={fmtKt}
               cellColorFn={(entry, i) => getFieldColor(entry.name, i)}
               excludeDirections={["e", "ne", "se"]}
+              onHorizontalResize={fieldSplit.onResize}
             />
           </div>
         </div>
+
+        
+        {/* Block-Field Qoil Breakdown */}
+        {blockBreakdown.length > 0 && (() => {
+          const selectedData = blockBreakdown.find((b) => b.block === selectedBlock);
+          const blockBarData = selectedData
+            ? [...selectedData.fields.map((f) => ({
+                name: f.name, oil: toKt(f.oil),
+                council_plan_final: toKt(f.council_plan_final || 0),
+                type: "field",
+              })),
+               {
+                name: `${selectedData.block} (Total)`, oil: toKt(selectedData.total),
+                council_plan_final: toKt(selectedData.council_plan_final || 0),
+                type: "total",
+               }]
+            : [];
+          const blockPieData = selectedData
+            ? selectedData.fields.map((f, i) => ({
+                name: f.name,
+                value: toKt(f.oil),
+                fill: getFieldColor(f.name, i),
+              }))
+            : [];
+          const blockTotalOil = selectedData ? toKt(selectedData.total) : 0;
+
+          return (
+            <div className="charts-row" style={{ alignItems: "flex-start" }} ref={blockSplit.rowRef}>
+              <div
+                ref={blockSplit.leftRef}
+                className="chart-card charts-row-item"
+                style={{ overflow: "visible", position: "relative", zIndex: 1, ...blockSplit.leftStyle }}
+              >
+                <ProductionBarChart
+                  title={`Qoil by Field in Block — ${selectedYear}`}
+                  data={blockBarData}
+                  compareKey="council_plan_final"
+                  yLabel="Sản lượng dầu (ngàn tấn)"
+                  tooltipLabel="Thực tế (ngàn tấn)"
+                  compareLabel="Kế hoạch (ngàn tấn)"
+                  barLabelFormatter={fmtKt}
+                  cellColorFn={(entry, i, isCompare) =>
+                    entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getFieldColor(entry.name, i)
+                  }
+                  excludeDirections={["w", "nw", "sw"]}
+                  onHorizontalResize={blockSplit.onResize}
+                  headerRight={
+                    <select
+                      value={selectedBlock}
+                      onChange={(e) => setSelectedBlock(e.target.value)}
+                      style={{ marginLeft: 12, padding: "3px 8px", fontSize: 13 }}
+                    >
+                      {blockBreakdown.map((b) => (
+                        <option key={b.block} value={b.block}>{b.block}</option>
+                      ))}
+                    </select>
+                  }
+                />
+              </div>
+
+              <div className="chart-card charts-row-item" style={{ overflow: "visible", flex: "1 1 0", minWidth: 0 }}>
+                <PieChartCard
+                  title={`Field Share — ${selectedBlock} (${selectedYear})`}
+                  pieData={blockPieData}
+                  totalValue={blockTotalOil}
+                  tooltipLabel="Sản lượng dầu"
+                  excludeDirections={["e", "ne", "se"]}
+                  onHorizontalResize={blockSplit.onResize}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Field-Reservoir Qoil Breakdown */}
         {fieldBreakdown.length > 0 && (() => {
@@ -337,20 +364,25 @@ function ProductionPage() {
           const totalOil = selectedData ? toKt(selectedData.total) : 0;
 
           return (
-            <div className="charts-row" style={{ alignItems: "flex-start" }}>
-              <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
+            <div className="charts-row" style={{ alignItems: "flex-start" }} ref={reservoirSplit.rowRef}>
+              <div
+                ref={reservoirSplit.leftRef}
+                className="chart-card charts-row-item"
+                style={{ overflow: "visible", position: "relative", zIndex: 1, ...reservoirSplit.leftStyle }}
+              >
                 <ProductionBarChart
                   title={`Qoil by Reservoir in Field — ${selectedYear}`}
                   data={barData}
                   compareKey="council_plan_final"
-                  yLabel="Qoil (kt)"
-                  tooltipLabel="Thực tế (kt)"
-                  compareLabel="Kế hoạch (kt)"
+                  yLabel="Sản lượng dầu (ngàn tấn)"
+                  tooltipLabel="Thực tế (ngàn tấn)"
+                  compareLabel="Kế hoạch (ngàn tấn)"
                   barLabelFormatter={fmtKt}
                   cellColorFn={(entry, i, isCompare) =>
                     entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getReservoirColor(entry.name, i)
                   }
                   excludeDirections={["w", "nw", "sw"]}
+                  onHorizontalResize={reservoirSplit.onResize}
                   headerRight={
                     <select
                       value={selectedBreakdownField}
@@ -365,85 +397,20 @@ function ProductionPage() {
                 />
               </div>
 
-              <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
+              <div className="chart-card charts-row-item" style={{ overflow: "visible", flex: "1 1 0", minWidth: 0 }}>
                 <PieChartCard
                   title={`Reservoir Share — ${selectedBreakdownField} (${selectedYear})`}
                   pieData={pieData}
                   totalValue={totalOil}
-                  tooltipLabel="Qoil"
+                  tooltipLabel="Sản lượng dầu"
                   excludeDirections={["e", "ne", "se"]}
+                  onHorizontalResize={reservoirSplit.onResize}
                 />
               </div>
             </div>
           );
         })()}
-
-        {/* Block-Field Qoil Breakdown */}
-        {blockBreakdown.length > 0 && (() => {
-          const selectedData = blockBreakdown.find((b) => b.block === selectedBlock);
-          const blockBarData = selectedData
-            ? [...selectedData.fields.map((f) => ({
-                name: f.name, oil: toKt(f.oil),
-                council_plan_final: toKt(f.council_plan_final || 0),
-                type: "field",
-              })),
-               {
-                name: `${selectedData.block} (Total)`, oil: toKt(selectedData.total),
-                council_plan_final: toKt(selectedData.council_plan_final || 0),
-                type: "total",
-               }]
-            : [];
-          const blockPieData = selectedData
-            ? selectedData.fields.map((f, i) => ({
-                name: f.name,
-                value: toKt(f.oil),
-                fill: getFieldColor(f.name, i),
-              }))
-            : [];
-          const blockTotalOil = selectedData ? toKt(selectedData.total) : 0;
-
-          return (
-            <div className="charts-row" style={{ alignItems: "flex-start" }}>
-              <div className="chart-card charts-row-item" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
-                <ProductionBarChart
-                  title={`Qoil by Field in Block — ${selectedYear}`}
-                  data={blockBarData}
-                  compareKey="council_plan_final"
-                  yLabel="Qoil (kt)"
-                  tooltipLabel="Thực tế (kt)"
-                  compareLabel="Kế hoạch (kt)"
-                  barLabelFormatter={fmtKt}
-                  cellColorFn={(entry, i, isCompare) =>
-                    entry.type === "total" ? (isCompare ? "#78909c" : "#37474f") : getFieldColor(entry.name, i)
-                  }
-                  excludeDirections={["w", "nw", "sw"]}
-                  headerRight={
-                    <select
-                      value={selectedBlock}
-                      onChange={(e) => setSelectedBlock(e.target.value)}
-                      style={{ marginLeft: 12, padding: "3px 8px", fontSize: 13 }}
-                    >
-                      {blockBreakdown.map((b) => (
-                        <option key={b.block} value={b.block}>{b.block}</option>
-                      ))}
-                    </select>
-                  }
-                />
-              </div>
-
-              <div className="chart-card charts-row-item" style={{ overflow: "visible" }}>
-                <PieChartCard
-                  title={`Field Share — ${selectedBlock} (${selectedYear})`}
-                  pieData={blockPieData}
-                  totalValue={blockTotalOil}
-                  tooltipLabel="Qoil"
-                  excludeDirections={["e", "ne", "se"]}
-                />
-              </div>
-            </div>
-          );
-        })()}
-
+        
         {/* Reservoir-level chart with VRR */}
         <div className="chart-card" style={{ marginBottom: 24 }}>
           <ReservoirChartModule
@@ -458,6 +425,9 @@ function ProductionPage() {
             allFilters={filters}
           />
         </div>
+
+        {/* Council Plan vs Actual decline comparison (oil & liquid rate) */}
+        <DeclineComparisonModule year={selectedYear} availableYears={availableYears} />
 
         {/* Aggregated well production chart */}
         <div className="chart-card">
